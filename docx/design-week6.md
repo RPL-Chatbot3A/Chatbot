@@ -27,3 +27,32 @@ Pemisahan modul dirancang berdasarkan prinsip **Separation of Concerns (SoC)** d
 | **KnowledgeData Module** *(Akses Data & Repositori)* | - Mengelola operasi baca-tulis data FAQ (`SELECT`, `INSERT`, `UPDATE`, `DELETE`).<br>- Menyimpan log percakapan pengguna untuk audit riwayat.<br>- Mengisolasi skema database dari logika aplikasi. | Menerapkan *low coupling* agar perubahan skema database (MySQL/PostgreSQL/JSON) tidak merusak controller atau engine pencocokan. |
 | **AdminCMS Module** *(Manajemen Pengetahuan)* | - Menyediakan form antarmuka bagi staf TU FST untuk pembaruan data FAQ.<br>- Melakukan validasi hak akses staf TU FST sebelum perubahan disimpan. | Memisahkan jalur operasional admin dari interaksi obrolan umum mahasiswa. |
 
+---
+
+## 5. Dua Keputusan Desain Beserta Alasannya
+
+### 5.1 Keputusan Desain 1: Memisahkan KnowledgeEngine dan KnowledgeData
+
+Kebutuhan terkait: REQ-01, REQ-02, dan REQ-04.
+
+Keputusan desain:
+Sistem memisahkan KnowledgeEngine Module sebagai pengolah dan pencocok kata kunci dari KnowledgeData Module sebagai pengelola penyimpanan data FAQ. KnowledgeEngine mengakses data FAQ melalui KnowledgeData tanpa perlu mengetahui detail struktur database.
+
+Alternatif desain:
+Proses pencocokan kata kunci dan operasi database digabungkan dalam satu modul.
+
+Alasan pemilihan:
+Pemisahan ini menerapkan prinsip Separation of Concerns, High Cohesion, dan Low Coupling. KnowledgeEngine dapat dikembangkan atau diganti algoritmanya tanpa harus mengubah cara penyimpanan data FAQ. Selain itu, perubahan database tidak secara langsung memengaruhi logika pencocokan kata kunci.
+
+### 5.2 Keputusan Desain 2: Menggunakan Fallback Helpdesk ketika Jawaban Tidak Ditemukan
+
+Kebutuhan terkait: REQ-03.
+
+Keputusan desain:
+KnowledgeEngine menentukan apakah pertanyaan pengguna cocok dengan aturan FAQ yang tersedia. Jika jawaban tidak ditemukan atau pertanyaan memerlukan penanganan staf, sistem memberikan respons fallback. ChatController mengoordinasikan respons tersebut agar ChatUI dapat menampilkan arahan untuk menghubungi kontak resmi Helpdesk/TU FST.
+
+Alternatif desain:
+Sistem tetap memberikan jawaban berdasarkan perkiraan meskipun tidak menemukan kecocokan pada basis pengetahuan FAQ.
+
+Alasan pemilihan:
+Fallback membantu mengurangi risiko penyampaian informasi yang tidak didukung oleh basis pengetahuan. Pengguna tetap memperoleh arahan ketika sistem tidak dapat menjawab pertanyaan. Keputusan ini juga menjaga agar tanggung jawab KnowledgeEngine, ChatController, dan ChatUI tetap jelas.
