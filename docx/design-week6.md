@@ -31,7 +31,7 @@ Pemisahan modul dirancang berdasarkan prinsip **Separation of Concerns (SoC)** d
 
 ## 5. Dua Keputusan Desain Beserta Alasannya
 
-### 5.1 Keputusan Desain 1: Memisahkan KnowledgeEngine dan KnowledgeData
+### 5.1 Memisahkan KnowledgeEngine dan KnowledgeData
 
 Kebutuhan terkait: REQ-01, REQ-02, dan REQ-04.
 
@@ -44,7 +44,7 @@ Proses pencocokan kata kunci dan operasi database digabungkan dalam satu modul.
 Alasan pemilihan:
 Pemisahan ini menerapkan prinsip Separation of Concerns, High Cohesion, dan Low Coupling. KnowledgeEngine dapat dikembangkan atau diganti algoritmanya tanpa harus mengubah cara penyimpanan data FAQ. Selain itu, perubahan database tidak secara langsung memengaruhi logika pencocokan kata kunci.
 
-### 5.2 Keputusan Desain 2: Menggunakan Fallback Helpdesk ketika Jawaban Tidak Ditemukan
+### 5.2 Menggunakan Fallback Helpdesk ketika Jawaban Tidak Ditemukan
 
 Kebutuhan terkait: REQ-03.
 
