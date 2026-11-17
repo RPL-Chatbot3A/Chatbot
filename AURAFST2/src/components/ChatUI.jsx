@@ -3,13 +3,13 @@ import { validateAndSanitizeTopic } from "../utils/chatValidator";
 import { askGeminiFST } from "../services/geminiService";
 import QuickReplyButtons from "./QuickReplyButtons";
 import FormattedMessage from "./FormattedMessage";
-import { Send, Sparkles, Maximize2, Minimize2 } from "lucide-react";
+import { Send, Sparkles, Maximize2, Minimize2, PanelLeft } from "lucide-react";
 
 /**
  * Komponen Utama ChatUI untuk Chatbot AURA-FST (FR-001)
  * Didesain dengan antarmuka minimalis ala Google Gemini AI.
  */
-export const ChatUI = () => {
+export const ChatUI = ({ isSidebarOpen, onToggleSidebar }) => {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -158,17 +158,21 @@ export const ChatUI = () => {
 
   return (
     <div className="flex flex-col h-dvh w-full bg-linear-to-b from-slate-800 to-slate-900 text-slate-800 overflow-hidden font-sans">
-      {/* Header Minimalis ala Gemini */}
-      {/* <header className="px-6 py-4 flex items-center justify-between bg-slate-800/40 opacity-60 backdrop-blur-md sticky top-0 z-10">
-        <div className="flex items-center gap-2.5">
-          <span className="font-semibold text-lg tracking-tight bg-gradient-to-r from-sky-600 via-blue-600 to-indigo-600 bg-clip-text text-transparent">
-            AURA-FST
-          </span>
-          <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
-            Asisten Akademik
-          </span>
-        </div>
-      </header> */}
+      {/* Top Bar dengan Tombol Toggle Sidebar */}
+      <header className="px-4 py-3 flex items-center gap-3">
+        <button
+          type="button"
+          onClick={onToggleSidebar}
+          title={isSidebarOpen ? "Tutup sidebar" : "Buka sidebar"}
+          aria-label={isSidebarOpen ? "Tutup sidebar" : "Buka sidebar"}
+          className="p-2 text-slate-300 hover:text-white hover:bg-slate-700/70 rounded-full transition-colors cursor-pointer"
+        >
+          <PanelLeft size={20} />
+        </button>
+        <span className="font-semibold text-base tracking-tight text-zinc-100">
+          AURA-FST
+        </span>
+      </header>
 
       {/* Area Chat */}
       <main className="flex-1 overflow-y-auto px-4 sm:px-6 py-6">
@@ -184,7 +188,7 @@ export const ChatUI = () => {
                 </div>
               </div>
             ) : (
-              /* Balasan Bot Tanpa Kotak Kaku */
+              /* Balasan Bot */
               <div key={msg.id} className="flex items-start gap-4">
                 <div className="w-8 h-8 rounded-full bg-linear-to-tr from-sky-500 to-indigo-500 flex items-center justify-center text-white shrink-0 mt-0.5 shadow-sm">
                   <Sparkles size={16} />
@@ -196,7 +200,7 @@ export const ChatUI = () => {
             );
           })}
 
-          {/* Loading Indicator ala Gemini */}
+          {/* Loading Indicator */}
           {isLoading && (
             <div className="flex items-center gap-4">
               <div className="w-8 h-8 rounded-full bg-linear-to-tr from-sky-500 to-indigo-500 flex items-center justify-center text-white shrink-0 animate-pulse">
@@ -231,7 +235,7 @@ export const ChatUI = () => {
           )}
 
           {/* Tombol Opsi Cepat (FR-001) */}
-          <div className="mb-2 pl-2">
+          <div className="mb-1 pl-2">
             <QuickReplyButtons
               onSelectOption={handleSendMessage}
               isDisabled={isLoading}

@@ -19,9 +19,9 @@ const QUICK_OPTIONS = [
 export const QuickReplyButtons = ({ onSelectOption, isDisabled = false }) => {
   return (
     <div className="w-full py-2">
-      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+      {/* <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
         Pilihan Cepat / FAQ:
-      </p>
+      </p> */}
       <div className="flex flex-wrap gap-2">
         {QUICK_OPTIONS.map((item) => (
           <button
