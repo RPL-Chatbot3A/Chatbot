@@ -19,7 +19,7 @@ const QUICK_OPTIONS = [
 export const QuickReplyButtons = ({ onSelectOption, isDisabled = false }) => {
   return (
     <div className="w-full py-2">
-      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
         Pilihan Cepat / FAQ:
       </p>
       <div className="flex flex-wrap gap-2">
@@ -29,7 +29,7 @@ export const QuickReplyButtons = ({ onSelectOption, isDisabled = false }) => {
             type="button"
             disabled={isDisabled}
             onClick={() => onSelectOption && onSelectOption(item.query)}
-            className="px-3.5 py-1.5 text-xs sm:text-sm font-medium rounded-full border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 hover:border-sky-300 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm active:scale-95"
+            className="px-3.5 py-1.5 text-xs sm:text-sm font-medium rounded-full border border-slate-400/10 bg-slate-700/95 backdrop-blur-3xl shadow-inner shadow-white/15 text-slate-100 hover:scale-105 hover:shadow-white/20 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 cursor-pointer"
           >
             {item.label}
           </button>

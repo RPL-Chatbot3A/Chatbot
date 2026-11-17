@@ -1,11 +1,16 @@
 import React from 'react';
 import ChatUI from './components/ChatUI';
+import ChatUIGemini from './components/ChatUIGemini';
 
 function App() {
   return (
-    <div className="min-h-screen bg-slate-100 p-2 sm:p-6 flex flex-col justify-center items-center">
-      <div className="w-full max-w-3xl h-[90vh]">
-        <ChatUI />
+    <div className="h-dvh w-full bg-slate-100 flex flex-row items-center overflow-hidden">
+      <div className="flex flex-col w-full basis-2/12 items-center justify-center max-w-3xl">
+        <h1 className="text-2xl font-bold text-center">[Sidemenu]</h1>
+      </div>
+      <div className="basis-10/12 w-full">
+        {/* <ChatUI /> */}
+        <ChatUIGemini />
       </div>
     </div>
   );

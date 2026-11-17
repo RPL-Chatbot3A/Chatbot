@@ -105,7 +105,7 @@ const renderBoldText = (text, keyPrefix) => {
   return subParts.map((sub, i) => {
     if (sub.startsWith('**') && sub.endsWith('**')) {
       return (
-        <strong key={`${keyPrefix}-bold-${i}`} className="font-semibold text-slate-900">
+        <strong key={`${keyPrefix}-bold-${i}`} className="font-semibold text-zinc-50">
           {sub.slice(2, -2)}
         </strong>
       );
