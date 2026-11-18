@@ -1,6 +1,20 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { validateAndSanitizeTopic } from "../utils/chatValidator";
 import { askGeminiFST } from "../services/geminiService";
+import { getOrCreateUserSession } from "../services/authService";
+
+import {
+  createConversation,
+  getConversations,
+  getMessages,
+  saveUserMessage,
+  saveAssistantMessage,
+  updateConversationTime,
+  updateConversationTitle,
+  deleteConversation,
+} from "../services/chatHistory";
+
 import QuickReplyButtons from "./QuickReplyButtons";
 import FormattedMessage from "./FormattedMessage";
 import { Send, Sparkles, Maximize2, Minimize2, PanelLeft } from "lucide-react";
@@ -9,7 +23,7 @@ import { Send, Sparkles, Maximize2, Minimize2, PanelLeft } from "lucide-react";
  * Komponen Utama ChatUI untuk Chatbot AURA-FST (FR-001)
  * Didesain dengan antarmuka minimalis ala Google Gemini AI.
  */
-export const ChatUI = ({ isSidebarOpen, onToggleSidebar }) => {
+export const ChatUI = ({ isSidebarOpen, onToggleSidebar, onLogout, onHistoryChange }) => {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -17,9 +31,53 @@ export const ChatUI = ({ isSidebarOpen, onToggleSidebar }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showExpandBtn, setShowExpandBtn] = useState(false);
   const [isMultiline, setIsMultiline] = useState(false);
+  // State untuk riwayat percakapan
+const [userId, setUserId] = useState(null);
+const [activeConversationId, setActiveConversationId] = useState(null);
+const [conversations, setConversations] = useState([]);
+const [isHistoryLoading, setIsHistoryLoading] = useState(false);
 
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
+
+  // Mengambil sesi login dan memuat riwayat percakapan
+useEffect(() => {
+  let cancelled = false;
+
+  const initializeChatHistory = async () => {
+    try {
+      setIsHistoryLoading(true);
+
+      const session = await getOrCreateUserSession();
+      const currentUserId = session.user.id;
+
+      if (cancelled) return;
+
+      setUserId(currentUserId);
+
+      const history = await getConversations(currentUserId);
+
+      if (!cancelled) {
+        setConversations(history || []);
+      }
+    } catch (error) {
+      console.error("Gagal memuat riwayat chat:", error);
+      if (!cancelled) {
+        setErrorMessage(error.message);
+      }
+    } finally {
+      if (!cancelled) {
+        setIsHistoryLoading(false);
+      }
+    }
+  };
+
+  initializeChatHistory();
+
+  return () => {
+    cancelled = true;
+  };
+}, []);
 
   // Inisialisasi Welcome Message saat pertama kali dibuka (FR-001)
   useEffect(() => {
@@ -118,8 +176,41 @@ export const ChatUI = ({ isSidebarOpen, onToggleSidebar }) => {
     setIsLoading(true);
 
     try {
-      // 2. Panggil askGeminiFST dengan callback onChunk
-      await askGeminiFST(sanitizedTopic, (currentAccumulatedText) => {
+// Membuat percakapan baru jika belum ada
+if (!userId) {
+  throw new Error("Sesi pengguna belum siap. Silakan coba lagi.");
+}
+
+let conversationId = activeConversationId;
+
+if (!conversationId) {
+  const newConversation = await createConversation(
+    userId,
+    sanitizedTopic.slice(0, 50)
+  );
+
+  conversationId = newConversation.id;
+
+  setActiveConversationId(conversationId);
+
+  setConversations((prev) => [
+    newConversation,
+    ...prev,
+  ]);
+}
+
+// Menyimpan pesan pengguna
+await saveUserMessage(
+  conversationId,
+  userId,
+  sanitizedTopic
+);
+
+await updateConversationTime(conversationId);
+      // 2. Panggil Gemini dan tampung jawaban akhirnya
+const assistantResponse = await askGeminiFST(
+  sanitizedTopic,
+  (currentAccumulatedText) => {
         setIsLoading(false);
         setMessages((prevMessages) =>
           prevMessages.map((msg) =>
@@ -128,7 +219,15 @@ export const ChatUI = ({ isSidebarOpen, onToggleSidebar }) => {
               : msg,
           ),
         );
-      });
+      })
+// Menyimpan jawaban AI ke Supabase
+await saveAssistantMessage(
+  conversationId,
+  userId,
+  assistantResponse
+);
+
+await updateConversationTime(conversationId);;
     } catch (err) {
       console.error("Terjadi kesalahan pada ChatUI:", err);
       setMessages((prev) => prev.filter((msg) => msg.id !== botMessageId));
@@ -140,6 +239,89 @@ export const ChatUI = ({ isSidebarOpen, onToggleSidebar }) => {
       setIsLoading(false);
     }
   };
+
+
+  // Membuka percakapan lama dari riwayat
+  const handleOpenConversation = async (conversationId) => {
+    try {
+      setIsHistoryLoading(true);
+      setErrorMessage("");
+
+      const historyMessages = await getMessages(conversationId);
+
+      const formattedMessages = historyMessages.map((msg) => ({
+        id: msg.id,
+        sender: msg.role === "user" ? "user" : "bot",
+        text: msg.content,
+        timestamp: new Date(msg.created_at).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      }));
+
+
+ 
+
+      setMessages(formattedMessages);
+      setActiveConversationId(conversationId);
+    } catch (error) {
+      console.error("Gagal membuka percakapan:", error);
+      setErrorMessage(error.message || "Gagal membuka riwayat percakapan.");
+    } finally {
+      setIsHistoryLoading(false);
+    }
+  };
+
+  // Membuat percakapan baru
+const handleNewChat = () => {
+  setActiveConversationId(null);
+  setMessages([
+    {
+      id: "welcome-" + Date.now(),
+      sender: "bot",
+      text: "Halo! Selamat datang di **AURA-FST** 👋\nSaya siap membantu memberikan informasi resmi akademik FST seputar KRS, Sidang TA, PMB, maupun materi sains & perkuliahan. Silakan ketik pertanyaan Anda.",
+      timestamp: new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    },
+  ]);
+  setInputText("");
+  setErrorMessage("");
+};
+
+
+  // Menghapus percakapan dari riwayat
+  const handleDeleteConversation = async (conversationId) => {
+    try {
+      await deleteConversation(conversationId);
+
+      setConversations((prev) =>
+        prev.filter((conversation) => conversation.id !== conversationId)
+      );
+
+      if (activeConversationId === conversationId) {
+        setActiveConversationId(null);
+        setMessages([]);
+      }
+    } catch (error) {
+      console.error("Gagal menghapus percakapan:", error);
+      setErrorMessage(error.message || "Gagal menghapus percakapan.");
+    }
+  };
+
+
+  // Mengirim data riwayat ke App.jsx
+  useEffect(() => {
+    onHistoryChange?.({
+      conversations,
+      isLoading: isHistoryLoading,
+      onOpen: handleOpenConversation,
+      onDelete: handleDeleteConversation,
+       onNewChat: handleNewChat,
+    });
+  }, [conversations, isHistoryLoading]);
+
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -157,22 +339,26 @@ export const ChatUI = ({ isSidebarOpen, onToggleSidebar }) => {
   };
 
   return (
-    <div className="flex flex-col h-dvh w-full bg-linear-to-b from-slate-800 to-slate-900 text-slate-800 overflow-hidden font-sans">
+    <>
+      <div className="flex flex-col h-dvh w-full bg-linear-to-b from-slate-800 to-slate-900 text-slate-800 overflow-hidden font-sans">
       {/* Top Bar dengan Tombol Toggle Sidebar */}
       <header className="px-4 py-3 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={onToggleSidebar}
-          title={isSidebarOpen ? "Tutup sidebar" : "Buka sidebar"}
-          aria-label={isSidebarOpen ? "Tutup sidebar" : "Buka sidebar"}
-          className="p-2 text-slate-300 hover:text-white hover:bg-slate-700/70 rounded-full transition-colors cursor-pointer"
-        >
-          <PanelLeft size={20} />
-        </button>
-        <span className="font-semibold text-base tracking-tight text-zinc-100">
-          AURA-FST
-        </span>
-      </header>
+  <button
+    type="button"
+    onClick={onToggleSidebar}
+    title={isSidebarOpen ? "Tutup sidebar" : "Buka sidebar"}
+    aria-label={isSidebarOpen ? "Tutup sidebar" : "Buka sidebar"}
+    className="p-2 text-slate-300 hover:text-white hover:bg-slate-700/70 rounded-full transition-colors cursor-pointer"
+  >
+    <PanelLeft size={20} />
+  </button>
+
+  <span className="font-semibold text-base tracking-tight text-zinc-100">
+    AURA-FST
+  </span>
+
+  <div className="flex-1" />
+</header>
 
       {/* Area Chat */}
       <main className="flex-1 overflow-y-auto px-4 sm:px-6 py-6">
@@ -306,7 +492,8 @@ export const ChatUI = ({ isSidebarOpen, onToggleSidebar }) => {
           </p>
         </div>
       </footer>
-    </div>
+          </div>
+    </>
   );
 };
 
