@@ -29,7 +29,7 @@ export const QuickReplyButtons = ({ onSelectOption, isDisabled = false }) => {
             type="button"
             disabled={isDisabled}
             onClick={() => onSelectOption && onSelectOption(item.query)}
-            className="px-3.5 py-1.5 text-xs sm:text-sm font-medium rounded-full border border-slate-400/10 bg-slate-700/95 backdrop-blur-3xl shadow-inner shadow-white/15 text-slate-100 hover:scale-105 hover:shadow-white/20 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 cursor-pointer"
+            className="px-3.5 py-1.5 text-xs sm:text-sm font-medium rounded-full border border-slate-400/10 bg-slate-700/95 backdrop-blur-3xl shadow-inner shadow-white/15 text-slate-100 hover:scale-[103%] hover:shadow-white/20 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 cursor-pointer"
           >
             {item.label}
           </button>

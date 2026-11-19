@@ -3,13 +3,21 @@ import { validateAndSanitizeTopic } from "../utils/chatValidator";
 import { askGeminiFST } from "../services/geminiService";
 import QuickReplyButtons from "./QuickReplyButtons";
 import FormattedMessage from "./FormattedMessage";
-import { Send, Sparkles, Maximize2, Minimize2, PanelLeft } from "lucide-react";
+import {
+  Send,
+  Sparkles,
+  Maximize2,
+  Minimize2,
+  PanelLeft,
+  PanelLeftClose,
+  PanelLeftOpen,
+} from "lucide-react";
 
 /**
  * Komponen Utama ChatUI untuk Chatbot AURA-FST (FR-001)
- * Didesain dengan antarmuka minimalis ala Google Gemini AI.
+ * Didesain dengan UI minimalis ala Google Gemini AI.
  */
-export const ChatUI = ({ isSidebarOpen, onToggleSidebar }) => {
+export const ChatUI = ({ isSidebarOpen, onToggleSidebar, externalPrompt }) => {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -72,6 +80,12 @@ export const ChatUI = ({ isSidebarOpen, onToggleSidebar }) => {
       el.style.height = `${Math.min(scrollHeight, 160)}px`;
     }
   }, [inputText, isExpanded]);
+
+  useEffect(() => {
+    if (externalPrompt?.text && !isLoading) {
+      handleSendMessage(externalPrompt.text);
+    }
+  }, [externalPrompt]);
 
   /**
    * Menangani pengiriman pesan baik dari tombol cepat maupun form input
@@ -163,12 +177,25 @@ export const ChatUI = ({ isSidebarOpen, onToggleSidebar }) => {
         <button
           type="button"
           onClick={onToggleSidebar}
-          title={isSidebarOpen ? "Tutup sidebar" : "Buka sidebar"}
-          aria-label={isSidebarOpen ? "Tutup sidebar" : "Buka sidebar"}
-          className="p-2 text-slate-300 hover:text-white hover:bg-slate-700/70 rounded-full transition-colors cursor-pointer"
+          aria-label={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
+          className="group relative p-2 text-slate-300 hover:text-white hover:bg-slate-700/70 rounded-full transition-colors cursor-pointer"
         >
-          <PanelLeft size={20} />
+          {/* Ikon normal saat tidak di-hover */}
+          <PanelLeft size={20} className="block group-hover:hidden" />
+
+          {/* Ikon berubah otomatis saat di-hover sesuai status sidebar */}
+          {isSidebarOpen ? (
+            <PanelLeftClose size={20} className="hidden group-hover:block" />
+          ) : (
+            <PanelLeftOpen size={20} className="hidden group-hover:block " />
+          )}
+
+          {/* Tooltip di bawah tombol/kursor */}
+          <span className="pointer-events-none absolute top-full left-0 mt-2 px-2.5 py-1 rounded-lg bg-slate-950 text-zinc-100 text-[11px] font-medium whitespace-nowrap border border-slate-700/80 shadow-lg opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition-all duration-150 z-50">
+            {isSidebarOpen ? "Close sidebar" : "Open sidebar"}
+          </span>
         </button>
+
         <span className="font-semibold text-base tracking-tight text-zinc-100">
           AURA-FST
         </span>
@@ -183,7 +210,7 @@ export const ChatUI = ({ isSidebarOpen, onToggleSidebar }) => {
             return msg.sender === "user" ? (
               /* Gelembung Pesan User */
               <div key={msg.id} className="flex justify-end">
-                <div className="max-w-[85%] sm:max-w-[75%] bg-linear-to-t from-slate-600 to-slate-700 text-zinc-100 rounded-3xl rounded-tr-sm px-5 py-3.5 text-[15px] leading-relaxed">
+                <div className="max-w-[85%] sm:max-w-[75%] bg-linear-to-b from-slate-600 to-slate-700 text-zinc-100 rounded-3xl rounded-tr-sm px-5 py-3.5 text-[15px] leading-relaxed">
                   <p className="whitespace-pre-wrap">{msg.text}</p>
                 </div>
               </div>
@@ -235,7 +262,7 @@ export const ChatUI = ({ isSidebarOpen, onToggleSidebar }) => {
           )}
 
           {/* Tombol Opsi Cepat (FR-001) */}
-          <div className="mb-1 pl-2">
+          <div className="mb-1 pl-1">
             <QuickReplyButtons
               onSelectOption={handleSendMessage}
               isDisabled={isLoading}

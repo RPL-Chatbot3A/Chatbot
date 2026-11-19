@@ -73,7 +73,7 @@ const renderLineWithMathAndBold = (text) => {
         return (
           <span
             key={index}
-            className="inline-block px-1 py-0.5 mx-0.5 font-serif text-sky-900 bg-sky-50/70 rounded border border-sky-200/50"
+            className="inline-block px-1 py-0.5 mx-0.5"
             dangerouslySetInnerHTML={{ __html: html }}
           />
         );
