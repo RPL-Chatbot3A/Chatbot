@@ -1,159 +1,305 @@
-import React, { useRef, useEffect } from "react";
+import React from "react";
 
 /**
- * Komponen Maskot Karakter Interaktif AURA-FST
- * Menyesuaikan video berlatar belakang putih murni (public/mascot.mp4):
- *
- * 1. Saat Light Mode:
- *    - Menggunakan mix-blend-multiply sehingga latar putih video 100% transparan dan
- *      menyatu sempurna tanpa kotak dengan warna halaman, dilengkapi bayangan melayang lembut.
- * 2. Saat Dark Mode:
- *    - Dibungkus dalam container lingkaran presisi (rounded-full overflow-hidden) dengan
- *      zoom/scale 2.8x sehingga hanya bola karakter yang terlihat bulat tanpa sisa putih di luar,
- *      serta soft radial glow ungu-cyan di belakangnya.
- * 3. Video berjalan lancar: autoPlay, loop, muted, dan playsInline.
+ * Komponen Maskot Karakter Animasi SVG & CSS Murni AURA-FST
+ * - Desain Bola 3D Glossy (Gradasi ungu-violet di atas hingga cyan-biru di bawah)
+ * - Kilauan highlight cahaya lembut di sisi kiri atas
+ * - Dua mata putih lonjong dengan animasi berkedip alami setiap 3-4 detik
+ * - Bersinar/berdenyut lembut saat bot berpikir atau membalas chat (isThinking/isSpeaking/isTyping)
+ * - Animasi melayang naik-turun halus (floating) dengan bayangan oval dinamis di bawahnya
+ * - 100% transparan tanpa kotak latar belakang apa pun, sempurna di Light & Dark Mode
  */
 export const MascotCharacter = ({
   size = "md", // "xs" (header/sidebar), "md" (chat bubble), "hero" (center screen)
   isSpeaking = false,
+  isThinking = false,
+  isTyping = false,
   showWave = false,
   theme = "dark",
   className = "",
   onClick,
 }) => {
-  const videoRef = useRef(null);
   const isDark = theme === "dark";
+  const activeState = isSpeaking || isThinking || isTyping;
 
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
+  // Dimensi per size
+  const sizeMap = {
+    hero: {
+      container: "w-32 h-32 sm:w-36 sm:h-36", // 128px - 144px (sesuai permintaan 120px - 140px)
+      shadow: "w-24 sm:w-28 h-3 -mt-1",
+      showShadow: true,
+    },
+    md: {
+      container: "w-10 h-10 sm:w-11 sm:h-11", // 40px - 44px
+      shadow: "",
+      showShadow: false,
+    },
+    xs: {
+      container: "w-8 h-8", // 32px
+      shadow: "",
+      showShadow: false,
+    },
+  };
 
-    if (isSpeaking) {
-      video.playbackRate = 1.0;
-      video.play().catch(() => {});
-    } else if (size === "hero") {
-      video.playbackRate = 0.9;
-      video.play().catch(() => {});
-    } else {
-      video.pause();
-    }
-  }, [isSpeaking, size]);
+  const currentSize = sizeMap[size] || sizeMap.md;
+
+  // Unique ID prefix untuk gradien SVG agar tidak konflik jika ada multiple instance
+  const id = React.useId().replace(/:/g, "");
+
+  const svgContent = (
+    <svg
+      viewBox="0 0 200 200"
+      className="w-full h-full overflow-visible select-none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <defs>
+        {/* Gradasi 3D Utama Bola: Ungu-Violet atas -> Cyan-Biru cerah bawah */}
+        <radialGradient
+          id={`bodyGrad-${id}`}
+          cx="38%"
+          cy="28%"
+          r="72%"
+          fx="32%"
+          fy="22%"
+        >
+          <stop offset="0%" stopColor="#C4B5FD" />
+          <stop offset="18%" stopColor="#8B5CF6" />
+          <stop offset="42%" stopColor="#6366F1" />
+          <stop offset="68%" stopColor="#0EA5E9" />
+          <stop offset="92%" stopColor="#0284C7" />
+          <stop offset="100%" stopColor="#0369A1" />
+        </radialGradient>
+
+        {/* Kilauan Cahaya Glossy di Sisi Kiri Atas */}
+        <linearGradient
+          id={`glossGrad-${id}`}
+          x1="0%"
+          y1="0%"
+          x2="80%"
+          y2="80%"
+        >
+          <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.75" />
+          <stop offset="45%" stopColor="#FFFFFF" stopOpacity="0.25" />
+          <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
+        </linearGradient>
+
+        {/* Pantulan Cahaya Tepi Halus (Rim Light) Bawah */}
+        <radialGradient
+          id={`rimGrad-${id}`}
+          cx="60%"
+          cy="85%"
+          r="50%"
+        >
+          <stop offset="0%" stopColor="#38BDF8" stopOpacity="0.5" />
+          <stop offset="100%" stopColor="#0284C7" stopOpacity="0" />
+        </radialGradient>
+
+        {/* Filter Soft Glow saat Aktif/Berpikir */}
+        <filter id={`eyeGlow-${id}`} x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="3.5" result="blur" />
+          <feComposite in="SourceGraphic" in2="blur" operator="over" />
+        </filter>
+
+        <filter id={`ballDropShadow-${id}`} x="-20%" y="-20%" width="140%" height="150%">
+          <feDropShadow
+            dx="0"
+            dy="8"
+            stdDeviation="10"
+            floodColor={isDark ? "#0284C7" : "#0284C7"}
+            floodOpacity={isDark ? "0.35" : "0.22"}
+          />
+        </filter>
+      </defs>
+
+      <style>{`
+        @keyframes auraBlinkAnim {
+          0%, 86%, 92%, 100% {
+            transform: scaleY(1);
+          }
+          88%, 90% {
+            transform: scaleY(0.08);
+          }
+        }
+        @keyframes auraFloatAnim {
+          0%, 100% {
+            transform: translateY(0px);
+          }
+          50% {
+            transform: translateY(-9px);
+          }
+        }
+        @keyframes auraEyePulse {
+          0%, 100% {
+            opacity: 1;
+            filter: drop-shadow(0 0 6px rgba(255,255,255,0.95)) drop-shadow(0 0 12px rgba(56,189,248,0.8));
+          }
+          50% {
+            opacity: 0.82;
+            filter: drop-shadow(0 0 2px rgba(255,255,255,0.7)) drop-shadow(0 0 5px rgba(56,189,248,0.5));
+          }
+        }
+        .aura-character-floating {
+          animation: auraFloatAnim 3.8s ease-in-out infinite;
+          transform-origin: center;
+        }
+        .aura-eye-left {
+          transform-origin: 79px 96px;
+          animation: auraBlinkAnim 3.6s ease-in-out infinite;
+        }
+        .aura-eye-right {
+          transform-origin: 121px 94px;
+          animation: auraBlinkAnim 3.6s ease-in-out infinite;
+        }
+        .aura-eye-active {
+          animation: auraBlinkAnim 3.6s ease-in-out infinite, auraEyePulse 1.2s ease-in-out infinite;
+        }
+      `}</style>
+
+      {/* Konten Karakter dengan Animasi Melayang */}
+      <g className="aura-character-floating">
+        {/* 1. Bola 3D Glossy Sempurna */}
+        <circle
+          cx="100"
+          cy="100"
+          r="84"
+          fill={`url(#bodyGrad-${id})`}
+          filter={`url(#ballDropShadow-${id})`}
+        />
+
+        {/* 2. Rim Light Bawah (Kedalaman 3D) */}
+        <circle
+          cx="100"
+          cy="100"
+          r="84"
+          fill={`url(#rimGrad-${id})`}
+        />
+
+        {/* 3. Kilauan Cahaya Glossy Utama di Kiri Atas */}
+        <ellipse
+          cx="76"
+          cy="56"
+          rx="46"
+          ry="25"
+          transform="rotate(-28 76 56)"
+          fill={`url(#glossGrad-${id})`}
+        />
+
+        {/* Kilauan Cahaya Titik Lembut Tambahan */}
+        <circle
+          cx="60"
+          cy="46"
+          r="6.5"
+          fill="#FFFFFF"
+          opacity="0.65"
+        />
+
+        {/* 4. Dua Mata Putih Lonjong di Bagian Tengah-Atas */}
+        {/* Mata Kiri */}
+        <g
+          className={`aura-eye-left ${activeState ? "aura-eye-active" : ""}`}
+        >
+          <ellipse
+            cx="79"
+            cy="96"
+            rx="11.5"
+            ry="17.5"
+            transform="rotate(-4 79 96)"
+            fill="#FFFFFF"
+            filter={activeState ? `url(#eyeGlow-${id})` : "none"}
+          />
+        </g>
+
+        {/* Mata Kanan */}
+        <g
+          className={`aura-eye-right ${activeState ? "aura-eye-active" : ""}`}
+        >
+          <ellipse
+            cx="121"
+            cy="94"
+            rx="11.5"
+            ry="17.5"
+            transform="rotate(4 121 94)"
+            fill="#FFFFFF"
+            filter={activeState ? `url(#eyeGlow-${id})` : "none"}
+          />
+        </g>
+      </g>
+    </svg>
+  );
 
   // ========================================================
-  // A. TAMPILAN HERO (TENGAH LAYAR)
+  // RENDER BERDASARKAN SIZE
   // ========================================================
+
+  // 1. Tampilan HERO (Tengah Layar)
   if (size === "hero") {
     return (
       <div
         className={`relative flex flex-col items-center justify-center select-none ${className}`}
         onClick={onClick}
       >
-        {/* Soft Radial Glow di Belakang Lingkaran Maskot */}
+        {/* Soft Radial Ambient Glow di Belakang Karakter */}
         <div
-          className={`absolute -inset-4 sm:-inset-6 rounded-full blur-2xl pointer-events-none transition-all duration-300 ${
+          className={`absolute -inset-4 sm:-inset-6 rounded-full blur-3xl pointer-events-none transition-all duration-300 ${
             isDark
-              ? "bg-linear-to-tr from-indigo-500/35 via-cyan-400/25 to-sky-500/30 opacity-80"
-              : "bg-linear-to-tr from-sky-200/50 via-cyan-100/50 to-indigo-100/40 opacity-70"
+              ? "bg-linear-to-tr from-indigo-500/30 via-cyan-400/20 to-sky-500/25 opacity-70"
+              : "bg-linear-to-tr from-indigo-200/40 via-sky-200/40 to-cyan-200/35 opacity-65"
           }`}
         />
 
-        {/* Kontainer Maskot: Lingkaran Presisi di Dark Mode & Multiply Seamless di Light Mode */}
-        <div
-          className={`relative w-40 h-40 sm:w-48 sm:h-48 animate-mascot-float flex items-center justify-center pointer-events-auto ${
-            isDark
-              ? "rounded-full overflow-hidden bg-transparent shadow-lg shadow-cyan-950/40"
-              : "rounded-full overflow-hidden bg-transparent"
-          }`}
-        >
-          <video
-            ref={videoRef}
-            autoPlay
-            loop
-            muted
-            playsInline
-            className={`w-full h-full object-cover scale-[2.8] cursor-pointer transition-all duration-300 ${
-              isDark ? "mix-blend-normal" : "mix-blend-multiply"
-            }`}
-          >
-            <source src="/mascot.mp4" type="video/mp4" />
-          </video>
+        {/* Karakter SVG Melayang */}
+        <div className={`relative ${currentSize.container} cursor-pointer`}>
+          {svgContent}
         </div>
 
-        {/* Bayangan Halus Melayang di Bawah Karakter */}
+        {/* Bayangan Oval Melayang Dinamis di Bawah Karakter */}
         <div
-          className={`w-28 sm:w-36 h-3 rounded-full blur-md animate-shadow-pulse mt-2 transition-colors ${
-            isDark ? "bg-cyan-500/20" : "bg-slate-400/30"
+          className={`${currentSize.shadow} rounded-full blur-md animate-shadow-pulse transition-colors ${
+            isDark ? "bg-cyan-500/25" : "bg-slate-400/35"
           }`}
         />
       </div>
     );
   }
 
-  // ========================================================
-  // B. TAMPILAN MINI (HEADER & SIDEBAR)
-  // ========================================================
+  // 2. Tampilan MINI (Header & Sidebar)
   if (size === "xs") {
     return (
       <div
-        className={`relative w-8 h-8 rounded-full overflow-hidden flex items-center justify-center shrink-0 ${className} ${
-          isDark ? "bg-transparent" : "bg-transparent"
-        }`}
+        className={`relative ${currentSize.container} flex items-center justify-center shrink-0 ${className}`}
       >
-        <video
-          ref={videoRef}
-          autoPlay
-          loop
-          muted
-          playsInline
-          className={`w-full h-full object-cover scale-[2.8] ${
-            isDark ? "mix-blend-normal" : "mix-blend-multiply"
-          }`}
-        >
-          <source src="/mascot.mp4" type="video/mp4" />
-        </video>
-        {isSpeaking && (
+        {svgContent}
+        {activeState && (
           <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-sky-400 animate-ping" />
         )}
       </div>
     );
   }
 
-  // ========================================================
-  // C. TAMPILAN AVATAR CHAT BUBBLE
-  // ========================================================
+  // 3. Tampilan AVATAR CHAT BUBBLE (size === "md")
   return (
     <div className={`relative flex items-center gap-2 shrink-0 ${className}`}>
       <div
-        className={`relative w-10 h-10 sm:w-11 sm:h-11 rounded-full overflow-hidden flex items-center justify-center transition-all duration-300 ${
-          isSpeaking
+        className={`relative ${currentSize.container} flex items-center justify-center rounded-full transition-all duration-300 ${
+          activeState
             ? `ring-2 ring-sky-400 ring-offset-2 ${
                 isDark ? "ring-offset-slate-900" : "ring-offset-white"
               } scale-105`
             : ""
         }`}
       >
-        <video
-          ref={videoRef}
-          autoPlay
-          loop
-          muted
-          playsInline
-          className={`w-full h-full object-cover scale-[2.8] ${
-            isDark ? "mix-blend-normal" : "mix-blend-multiply"
-          }`}
-        >
-          <source src="/mascot.mp4" type="video/mp4" />
-        </video>
+        {svgContent}
       </div>
 
+      {/* Indikator Status Online / Berbicara */}
       <span
-        className={`absolute bottom-0 left-7 sm:left-8 w-2.5 h-2.5 rounded-full border-2 transition-colors ${
+        className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 transition-colors ${
           isDark ? "border-slate-900" : "border-white"
-        } ${isSpeaking ? "bg-sky-400 animate-pulse" : "bg-emerald-500"}`}
+        } ${activeState ? "bg-sky-400 animate-pulse" : "bg-emerald-500"}`}
       />
 
       {/* Indikator Gelombang Suara (Voice Wave) saat berbicara */}
-      {showWave && isSpeaking && (
+      {showWave && activeState && (
         <div
           className={`flex items-center gap-0.5 h-4 px-1.5 py-0.5 rounded-full border ${
             isDark
