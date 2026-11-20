@@ -12,6 +12,7 @@ const QUICK_OPTIONS = [
 
 /**
  * Komponen QuickReplyButtons untuk merender tombol opsi cepat secara dinamis (DRY)
+ * Mendukung scroll horizontal pada perangkat mobile/tablet agar hemat ruang vertikal
  * @param {Object} props
  * @param {Function} props.onSelectOption - Callback saat tombol dipilih
  * @param {boolean} props.isDisabled - Status nonaktif saat memuat jawaban
@@ -21,15 +22,15 @@ export const QuickReplyButtons = ({ onSelectOption, isDisabled = false, theme = 
   const isDark = theme === 'dark';
 
   return (
-    <div className="w-full py-2">
-      <div className="flex flex-wrap gap-2">
+    <div className="w-full py-1.5 overflow-x-auto whitespace-nowrap scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+      <div className="flex items-center gap-2 pb-0.5">
         {QUICK_OPTIONS.map((item) => (
           <button
             key={item.id}
             type="button"
             disabled={isDisabled}
             onClick={() => onSelectOption && onSelectOption(item.query)}
-            className={`px-3.5 py-1.5 text-xs sm:text-sm font-medium rounded-full border transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 cursor-pointer shadow-xs ${
+            className={`shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium rounded-full border transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 cursor-pointer shadow-xs ${
               isDark
                 ? "border-slate-700/80 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white hover:border-slate-600"
                 : "border-slate-300 bg-white text-slate-700 hover:bg-sky-50 hover:text-sky-600 hover:border-sky-300 shadow-slate-100"

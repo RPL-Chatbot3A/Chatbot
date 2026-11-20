@@ -71,7 +71,7 @@ const FORBIDDEN_TOPICS = [
  */
 export const findInstantAnswer = (text) => {
   if (!text) return null;
-  const lower = text.toLowerCase().trim();
+  const lower = String(text).toLowerCase().trim();
 
   // Tolak topik yang benar-benar tidak pantas / tidak relevan
   if (FORBIDDEN_TOPICS.some((topic) => lower.includes(topic))) {
@@ -130,14 +130,23 @@ ${FAQ_KNOWLEDGE_BASE}
  * @returns {Promise<string>}
  */
 export const askGeminiFST = async (userMessage, onChunk) => {
-  // 1. Cek instan respons lokal (0ms latency untuk sapaan & quick buttons)
-  const instantAnswer = findInstantAnswer(userMessage);
+  // 1. Sanitasi teks input pengguna dan pastikan string terisi
+  const messageText = typeof userMessage === 'string'
+    ? userMessage.trim()
+    : String(userMessage || '').trim();
+
+  if (!messageText) {
+    throw new Error('Pesan pengguna kosong atau tidak valid.');
+  }
+
+  // 2. Cek instan respons lokal (0ms latency untuk sapaan & quick buttons)
+  const instantAnswer = findInstantAnswer(messageText);
   if (instantAnswer) {
     if (typeof onChunk === 'function') onChunk(instantAnswer, instantAnswer);
     return instantAnswer;
   }
 
-  // 2. Cek API Key
+  // 3. Cek API Key
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   if (!apiKey || apiKey.includes('MASUKKAN_GEMINI_API_KEY')) {
     const keyErr = new Error('Kunci API Gemini (VITE_GEMINI_API_KEY) belum dikonfigurasi di file .env');
@@ -145,12 +154,20 @@ export const askGeminiFST = async (userMessage, onChunk) => {
     throw keyErr;
   }
 
-  // 3. Konfigurasi model gemini-2.5-flash
+  // 4. Konfigurasi model gemini-2.5-flash
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=${apiKey}`;
 
+  // Pastikan struktur contents memiliki parts: [{ text: messageText }] yang valid
   const payload = {
-    contents: [{ parts: [{ text: userMessage }] }],
-    system_instruction: { parts: [{ text: buildSystemInstruction() }] },
+    contents: [
+      {
+        role: 'user',
+        parts: [{ text: messageText }],
+      },
+    ],
+    system_instruction: {
+      parts: [{ text: buildSystemInstruction() }],
+    },
     generationConfig: {
       temperature: 0.2,      // Presisi untuk rumus & aturan, tetapi luwes untuk sains/koding
       maxOutputTokens: 500,  // Cepat dan hemat token
@@ -177,6 +194,7 @@ export const askGeminiFST = async (userMessage, onChunk) => {
         status: response.status,
         statusText: response.statusText,
         errorData,
+        payloadSent: payload,
       });
 
       if (response.status === 503 || response.status === 429 || errMsg.toLowerCase().includes('demand')) {
@@ -185,10 +203,10 @@ export const askGeminiFST = async (userMessage, onChunk) => {
         return busyMsg;
       }
 
-      throw new Error(`Gemini API Error: ${errMsg}`);
+      throw new Error(`Gemini API Error (${response.status}): ${errMsg}`);
     }
 
-    // 4. Stream chunks realtime ke UI
+    // 5. Stream chunks realtime ke UI
     const reader = response.body.getReader();
     const decoder = new TextDecoder('utf-8');
     let accumulatedText = '';

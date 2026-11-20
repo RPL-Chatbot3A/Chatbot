@@ -69,8 +69,8 @@ const HERO_ACTION_CARDS = [
 
 /**
  * Komponen Utama ChatUI untuk Chatbot AURA-FST (FR-001)
- * Dilengkapi dengan Maskot Lingkaran Presisi, Pemisahan Try-Catch Gemini & Supabase,
- * Toggle Light/Dark Mode, Copy Message, Tombol Send interaktif, & Floating Scroll button.
+ * Dilengkapi dengan Optimistic UI Update, Maskot Animasi SVG Murni,
+ * Pemisahan Try-Catch Gemini & Supabase, dan Desain Responsif Mobile.
  */
 export const ChatUI = ({
   theme = "dark",
@@ -236,7 +236,7 @@ export const ChatUI = ({
       setIsLoading(true);
       const historyMessages = await getMessages(conversationId);
 
-      const formatted = historyMessages.map((msg) => ({
+      const formatted = (historyMessages || []).map((msg) => ({
         id: msg.id,
         sender: msg.role === "user" ? "user" : "bot",
         text: msg.content,
@@ -276,7 +276,7 @@ export const ChatUI = ({
     try {
       const success = await deleteConversation(conversationId);
       if (success) {
-        setConversations((prev) => prev.filter((c) => c.id !== conversationId));
+        setConversations((prev) => (prev || []).filter((c) => c.id !== conversationId));
         if (activeConversationId === conversationId) {
           handleNewChat();
         }
@@ -308,7 +308,7 @@ export const ChatUI = ({
   useEffect(() => {
     if (onHistoryChange) {
       onHistoryChange({
-        conversations,
+        conversations: conversations || [],
         isLoading: isHistoryLoading,
         onOpen: handleOpenConversation,
         onDelete: handleDeleteConversation,
@@ -317,16 +317,27 @@ export const ChatUI = ({
     }
   }, [conversations, isHistoryLoading, activeConversationId]);
 
-  // Handler pengiriman pesan utama dengan pemisahan try-catch Gemini & Supabase
+  // Handler pengiriman pesan utama dengan Optimistic UI Update & Pemisahan Try-Catch
   const handleSendMessage = async (textToSend) => {
     const rawText = textToSend || inputText;
-    if (!rawText.trim() || isLoading) return;
+    if (!rawText || !String(rawText).trim() || isLoading) return;
 
     setErrorMessage("");
 
-    const validation = validateAndSanitizeTopic(rawText);
+    const validation = validateAndSanitizeTopic(String(rawText));
     if (!validation.isValid) {
-      setErrorMessage(validation.message);
+      setErrorMessage(validation.errorMessage || validation.message || "Pesan tidak valid.");
+      return;
+    }
+
+    // Ambil string teks bersih dengan aman
+    const cleanText =
+      validation.sanitizedTopic ||
+      validation.sanitizedText ||
+      String(rawText).trim();
+
+    if (!cleanText) {
+      setErrorMessage("Pesan tidak boleh kosong.");
       return;
     }
 
@@ -335,39 +346,44 @@ export const ChatUI = ({
       minute: "2-digit",
     });
 
+    // 1. OPTIMISTIC UI UPDATE: Tampilkan bubble chat pengguna secara instan di layar
     const userMsg = {
       id: `user-${Date.now()}`,
       sender: "user",
-      text: validation.sanitizedText,
+      text: cleanText,
       timestamp,
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    setMessages((prev) => [...(prev || []), userMsg]);
     setInputText("");
     setIsLoading(true);
 
+    // Auto-scroll ke bawah saat pengguna mengirim pesan
+    setTimeout(() => scrollToBottom("smooth"), 50);
+
     // ========================================================
-    // 1. SIMPAN PESAN USER KE SUPABASE (ISOLATED TRY-CATCH)
+    // 2. SIMPAN PESAN USER KE SUPABASE (ISOLATED TRY-CATCH)
     // ========================================================
     let currentConvId = activeConversationId;
     if (userId) {
       try {
         if (!currentConvId) {
+          const textForTitle = cleanText || "Percakapan";
           const title =
-            validation.sanitizedText.length > 30
-              ? `${validation.sanitizedText.substring(0, 30)}...`
-              : validation.sanitizedText;
+            textForTitle.length > 30
+              ? `${textForTitle.substring(0, 30)}...`
+              : textForTitle;
 
           const newConv = await createConversation(userId, title);
           if (newConv) {
             currentConvId = newConv.id;
             setActiveConversationId(newConv.id);
-            setConversations((prev) => [newConv, ...prev]);
+            setConversations((prev) => [newConv, ...(prev || [])]);
           }
         }
 
         if (currentConvId) {
-          await saveUserMessage(currentConvId, userId, validation.sanitizedText);
+          await saveUserMessage(currentConvId, userId, cleanText);
           await updateConversationTime(currentConvId);
         }
       } catch (dbErr) {
@@ -376,11 +392,11 @@ export const ChatUI = ({
     }
 
     // ========================================================
-    // 2. PEMANGGILAN API GEMINI (ISOLATED TRY-CATCH)
+    // 3. PEMANGGILAN API GEMINI (ISOLATED TRY-CATCH)
     // ========================================================
     let aiResponseText = "";
     try {
-      const response = await askGeminiFST(validation.sanitizedText);
+      const response = await askGeminiFST(cleanText);
       aiResponseText =
         typeof response === "object" && response !== null
           ? response.text || response.response
@@ -396,7 +412,7 @@ export const ChatUI = ({
         }),
       };
 
-      setMessages((prev) => [...prev, botMsg]);
+      setMessages((prev) => [...(prev || []), botMsg]);
     } catch (geminiError) {
       console.error("Detail error asli saat memanggil Gemini API:", geminiError);
       const fallbackMsg = {
@@ -408,7 +424,7 @@ export const ChatUI = ({
           minute: "2-digit",
         }),
       };
-      setMessages((prev) => [...prev, fallbackMsg]);
+      setMessages((prev) => [...(prev || []), fallbackMsg]);
       setIsLoading(false);
       return; // Hentikan alur jika pemanggilan AI gagal
     } finally {
@@ -416,8 +432,7 @@ export const ChatUI = ({
     }
 
     // ========================================================
-    // 3. SIMPAN JAWABAN BOT KE SUPABASE (ISOLATED TRY-CATCH)
-    // Jawaban AI yang SUDAH didapat TIDAK akan hilang jika ini gagal!
+    // 4. SIMPAN JAWABAN BOT KE SUPABASE (ISOLATED TRY-CATCH)
     // ========================================================
     if (userId && currentConvId && aiResponseText) {
       try {
@@ -440,8 +455,9 @@ export const ChatUI = ({
     }
   };
 
+  // Pengecekan aman untuk tampilan welcome
   const isInitialWelcome =
-    messages.length === 1 && messages[0].sender === "bot";
+    (messages || []).length <= 1 && (messages || [])[0]?.sender === "bot";
 
   return (
     <div
@@ -451,13 +467,13 @@ export const ChatUI = ({
     >
       {/* Header Halaman Chat */}
       <header
-        className={`shrink-0 flex items-center justify-between px-4 sm:px-6 py-3 border-b transition-colors duration-200 ${
+        className={`shrink-0 flex items-center justify-between px-3 sm:px-6 py-2.5 sm:py-3 border-b transition-colors duration-200 ${
           isDark
             ? "bg-slate-900/90 border-slate-800"
             : "bg-white/90 border-slate-200 shadow-xs"
         }`}
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           {/* Tombol Buka Sidebar: Hanya Muncul Ketika Sidebar Sedang Tertutup */}
           {!isSidebarOpen && (
             <button
@@ -491,17 +507,17 @@ export const ChatUI = ({
           )}
 
           {/* Maskot Avatar Mini di Header */}
-          <div className="flex items-center gap-2 select-none">
+          <div className="flex items-center gap-2 select-none min-w-0">
             <MascotCharacter size="xs" theme={theme} isSpeaking={isLoading} />
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 min-w-0">
               <span
-                className={`font-semibold text-sm sm:text-base tracking-tight ${
+                className={`font-semibold text-sm sm:text-base tracking-tight truncate ${
                   isDark ? "text-zinc-100" : "text-slate-900"
                 }`}
               >
                 AURA-FST
               </span>
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 shrink-0">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 {isLoading ? "Berbicara..." : "Online"}
               </span>
@@ -510,7 +526,7 @@ export const ChatUI = ({
         </div>
 
         {/* Pojok Kanan Header: Tombol Switch Tema & Status */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
           {onToggleTheme && (
             <button
               type="button"
@@ -527,6 +543,7 @@ export const ChatUI = ({
             </button>
           )}
 
+          {/* Sembunyikan teks di layar mobile/kecil (< 640px / 768px) agar header tidak sempit */}
           <span
             className={`text-xs hidden sm:inline ${
               isDark ? "text-slate-400" : "text-slate-500"
@@ -541,12 +558,12 @@ export const ChatUI = ({
       <main
         ref={mainContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-4 sm:px-6 pt-6 sm:pt-8 pb-32 sm:pb-36 flex flex-col justify-between"
+        className="flex-1 overflow-y-auto px-3 sm:px-6 pt-5 sm:pt-8 pb-32 sm:pb-36 flex flex-col justify-between"
       >
         {isInitialWelcome ? (
           /* TAMPILAN HERO: KARAKTER MURNI MELAYANG DI TENGAH DENGAN SPACING LEGA */
           <div className="my-auto flex flex-col items-center justify-center text-center max-w-2xl mx-auto w-full pt-2 sm:pt-4 pb-6">
-            {/* Karakter Maskot Lingkaran Presisi Tanpa Kotak Background */}
+            {/* Karakter Maskot SVG Murni Tanpa Kotak Background */}
             <div className="mb-3 sm:mb-4">
               <MascotCharacter size="hero" theme={theme} />
             </div>
@@ -560,7 +577,7 @@ export const ChatUI = ({
               Halo! Aku AURA-FST
             </h1>
             <p
-              className={`text-xs sm:text-sm max-w-md leading-relaxed mb-6 sm:mb-8 ${
+              className={`text-xs sm:text-sm max-w-md leading-relaxed mb-6 sm:mb-8 px-2 ${
                 isDark ? "text-slate-300" : "text-slate-600"
               }`}
             >
@@ -569,7 +586,7 @@ export const ChatUI = ({
             </p>
 
             {/* 4 Kartu Opsi Cepat / Quick Cards (Sesuai Desain Referensi) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-3.5 w-full max-w-lg text-left">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-3.5 w-full max-w-lg text-left px-1 sm:px-0">
               {HERO_ACTION_CARDS.map((card) => (
                 <button
                   key={card.id}
@@ -615,32 +632,32 @@ export const ChatUI = ({
             </div>
           </div>
         ) : (
-          /* TAMPILAN PERCAKAPAN: CHAT MODE DENGAN KARAKTER BERBALAS & EKSPRESI MULUT */
-          <div className="max-w-3xl w-full mx-auto space-y-7">
-            {messages.map((msg, index) => {
-              if (!msg.text) return null;
+          /* TAMPILAN PERCAKAPAN: CHAT MODE DENGAN BUBBLE INSTAN & KARAKTER BERKEDIP/BERBICARA */
+          <div className="max-w-3xl w-full mx-auto space-y-6 sm:space-y-7">
+            {(messages || []).map((msg, index) => {
+              if (!msg || !msg.text) return null;
 
               const isLatestBotMessage =
-                msg.sender === "bot" && index === messages.length - 1;
+                msg.sender === "bot" && index === (messages || []).length - 1;
               const isCurrentlySpeaking = isLatestBotMessage && isLoading;
 
               return msg.sender === "user" ? (
-                /* Gelembung Pesan User */
+                /* Gelembung Pesan User (Langsung muncul secara instan) */
                 <div key={msg.id} className="flex justify-end">
                   <div
-                    className={`max-w-[85%] sm:max-w-[75%] rounded-3xl rounded-tr-sm px-5 py-3.5 text-[15px] leading-relaxed shadow-sm ${
+                    className={`max-w-[85%] sm:max-w-[75%] rounded-3xl rounded-tr-sm px-4 sm:px-5 py-3 sm:py-3.5 text-sm sm:text-[15px] leading-relaxed shadow-sm ${
                       isDark
                         ? "bg-linear-to-b from-slate-600 to-slate-700 text-zinc-100"
                         : "bg-linear-to-b from-sky-600 to-blue-600 text-white"
                     }`}
                   >
-                    <p className="whitespace-pre-wrap">{msg.text}</p>
+                    <p className="whitespace-pre-wrap break-words">{msg.text}</p>
                   </div>
                 </div>
               ) : (
                 /* Balasan Karakter Maskot Bot */
-                <div key={msg.id} className="flex items-start gap-3 sm:gap-4">
-                  {/* Maskot Avatar dengan Lingkaran Presisi & Animasi Ekspresi Mulut */}
+                <div key={msg.id} className="flex items-start gap-2.5 sm:gap-4">
+                  {/* Maskot Avatar SVG Murni dengan Animasi Berkedip & Berdenyut */}
                   <MascotCharacter
                     size="md"
                     theme={theme}
@@ -649,7 +666,7 @@ export const ChatUI = ({
                   />
 
                   {/* Isi Pesan & Tombol Salin */}
-                  <div className="flex-1 min-w-0 text-[15px] leading-relaxed pt-0.5">
+                  <div className="flex-1 min-w-0 max-w-[95%] sm:max-w-[85%] text-sm sm:text-[15px] leading-relaxed pt-0.5">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-xs font-semibold text-sky-500">
                         AURA-FST
@@ -669,7 +686,7 @@ export const ChatUI = ({
                     </div>
 
                     <div
-                      className={`${
+                      className={`break-words ${
                         isDark ? "text-zinc-200" : "text-slate-800"
                       }`}
                     >
@@ -710,7 +727,7 @@ export const ChatUI = ({
 
             {/* Indikator Menjawab / Memproses Pesan */}
             {isLoading && (
-              <div className="flex items-start gap-3 sm:gap-4">
+              <div className="flex items-start gap-2.5 sm:gap-4">
                 <MascotCharacter
                   size="md"
                   theme={theme}
@@ -742,7 +759,7 @@ export const ChatUI = ({
           type="button"
           onClick={() => scrollToBottom("smooth")}
           aria-label="Scroll ke pesan terbaru"
-          className={`fixed bottom-28 sm:bottom-32 right-6 sm:right-10 z-30 px-3 py-2 rounded-full shadow-lg border transition-all duration-200 flex items-center gap-1.5 text-xs font-medium cursor-pointer hover:scale-105 active:scale-95 ${
+          className={`fixed bottom-28 sm:bottom-32 right-4 sm:right-10 z-30 px-3 py-2 rounded-full shadow-lg border transition-all duration-200 flex items-center gap-1.5 text-xs font-medium cursor-pointer hover:scale-105 active:scale-95 ${
             isDark
               ? "bg-slate-800/95 text-sky-400 border-slate-700 hover:bg-slate-700 shadow-slate-950/60"
               : "bg-white/95 text-sky-600 border-slate-200 hover:bg-slate-50 shadow-slate-300/60"
@@ -755,14 +772,14 @@ export const ChatUI = ({
 
       {/* Area Input Kapsul (Footer) */}
       <footer
-        className={`w-full px-4 sm:px-6 pb-4 pt-2 shrink-0 transition-colors duration-200 ${
+        className={`w-full px-3 sm:px-6 pb-3 sm:pb-4 pt-2 shrink-0 transition-colors duration-200 ${
           isDark ? "bg-slate-900/80" : "bg-slate-50/80"
         } backdrop-blur-md`}
       >
         <div className="max-w-3xl w-full mx-auto">
           {/* Banner Error UI */}
           {errorMessage && (
-            <div className="mb-3 px-4 py-2.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-2xl flex justify-between items-center shadow-xs">
+            <div className="mb-2.5 px-4 py-2 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-2xl flex justify-between items-center shadow-xs">
               <span>⚠️ {errorMessage}</span>
               <button
                 onClick={() => setErrorMessage("")}
@@ -773,9 +790,9 @@ export const ChatUI = ({
             </div>
           )}
 
-          {/* Tombol Opsi Cepat (Hanya muncul jika sudah dalam mode chat) */}
+          {/* Tombol Opsi Cepat Horizontal Scrollable (Hanya muncul jika sudah dalam mode chat) */}
           {!isInitialWelcome && (
-            <div className="mb-1 pl-1">
+            <div className="mb-1">
               <QuickReplyButtons
                 theme={theme}
                 onSelectOption={handleSendMessage}
@@ -786,14 +803,14 @@ export const ChatUI = ({
 
           <form
             onSubmit={handleSubmit}
-            className={`relative flex flex-col border transition-all duration-200 px-5 py-2.5 shadow-sm ${
+            className={`relative flex flex-col border transition-all duration-200 px-4 sm:px-5 py-2 sm:py-2.5 shadow-sm ${
               isDark
                 ? "bg-linear-to-b from-slate-750 to-slate-800 focus-within:bg-slate-700/90 border-slate-700 focus-within:border-sky-500/70"
                 : "bg-white focus-within:bg-white border-slate-300 focus-within:border-sky-500 shadow-slate-200/50"
             } ${isMultiline || isExpanded ? "rounded-2xl" : "rounded-full"}`}
           >
             {/* Baris Utama: Textarea, Tombol Expand, & Tombol Send */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               <textarea
                 ref={textareaRef}
                 rows={1}
@@ -857,7 +874,7 @@ export const ChatUI = ({
           </form>
 
           <p
-            className={`text-xs text-center mt-2.5 transition-colors ${
+            className={`text-[11px] sm:text-xs text-center mt-2 transition-colors ${
               isDark ? "text-slate-400/90" : "text-slate-500"
             }`}
           >
