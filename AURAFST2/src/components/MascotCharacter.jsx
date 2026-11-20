@@ -2,10 +2,16 @@ import React, { useRef, useEffect } from "react";
 
 /**
  * Komponen Maskot Karakter Interaktif AURA-FST
- * - Dibungkus dalam kontainer lingkaran presisi (rounded-full overflow-hidden)
- * - Tanpa mix-blend-mode agar tidak menghasilkan artefak kotak/abu-abu di Light Mode
- * - Memprioritaskan video "/mascot.webm" dengan transparansi alpha channel asli
- * - Dilengkapi efek soft radial glow halus di belakangnya
+ * Menyesuaikan video berlatar belakang putih murni (public/mascot.mp4):
+ *
+ * 1. Saat Light Mode:
+ *    - Menggunakan mix-blend-multiply sehingga latar putih video 100% transparan dan
+ *      menyatu sempurna tanpa kotak dengan warna halaman, dilengkapi bayangan melayang lembut.
+ * 2. Saat Dark Mode:
+ *    - Dibungkus dalam container lingkaran presisi (rounded-full overflow-hidden) dengan
+ *      zoom/scale 2.8x sehingga hanya bola karakter yang terlihat bulat tanpa sisa putih di luar,
+ *      serta soft radial glow ungu-cyan di belakangnya.
+ * 3. Video berjalan lancar: autoPlay, loop, muted, dan playsInline.
  */
 export const MascotCharacter = ({
   size = "md", // "xs" (header/sidebar), "md" (chat bubble), "hero" (center screen)
@@ -33,51 +39,65 @@ export const MascotCharacter = ({
     }
   }, [isSpeaking, size]);
 
+  // ========================================================
+  // A. TAMPILAN HERO (TENGAH LAYAR)
+  // ========================================================
   if (size === "hero") {
     return (
       <div
         className={`relative flex flex-col items-center justify-center select-none ${className}`}
         onClick={onClick}
       >
-        {/* Soft Radial Glow halus di belakang lingkaran karakter */}
+        {/* Soft Radial Glow di Belakang Lingkaran Maskot */}
         <div
-          className={`absolute -inset-3 sm:-inset-4 rounded-full blur-2xl pointer-events-none transition-all duration-300 ${
+          className={`absolute -inset-4 sm:-inset-6 rounded-full blur-2xl pointer-events-none transition-all duration-300 ${
             isDark
-              ? "bg-sky-500/25 opacity-75"
-              : "bg-sky-400/30 opacity-70"
+              ? "bg-linear-to-tr from-indigo-500/35 via-cyan-400/25 to-sky-500/30 opacity-80"
+              : "bg-linear-to-tr from-sky-200/50 via-cyan-100/50 to-indigo-100/40 opacity-70"
           }`}
         />
 
-        {/* Kontainer Lingkaran Presisi (rounded-full overflow-hidden) */}
-        <div className="relative w-40 h-40 sm:w-48 sm:h-48 rounded-full overflow-hidden animate-mascot-float flex items-center justify-center bg-transparent pointer-events-auto">
+        {/* Kontainer Maskot: Lingkaran Presisi di Dark Mode & Multiply Seamless di Light Mode */}
+        <div
+          className={`relative w-40 h-40 sm:w-48 sm:h-48 animate-mascot-float flex items-center justify-center pointer-events-auto ${
+            isDark
+              ? "rounded-full overflow-hidden bg-transparent shadow-lg shadow-cyan-950/40"
+              : "rounded-full overflow-hidden bg-transparent"
+          }`}
+        >
           <video
             ref={videoRef}
             autoPlay
             loop
             muted
             playsInline
-            className="w-full h-full object-cover scale-105 cursor-pointer"
+            className={`w-full h-full object-cover scale-[2.8] cursor-pointer transition-all duration-300 ${
+              isDark ? "mix-blend-normal" : "mix-blend-multiply"
+            }`}
           >
-            {/* Prioritas WebM dengan Alpha Channel */}
-            <source src="/mascot.webm" type="video/webm" />
             <source src="/mascot.mp4" type="video/mp4" />
           </video>
         </div>
 
-        {/* Efek Bayangan Halus di bawah karakter */}
+        {/* Bayangan Halus Melayang di Bawah Karakter */}
         <div
-          className={`w-28 sm:w-36 h-3 rounded-full blur-md animate-shadow-pulse mt-1 transition-colors ${
-            isDark ? "bg-sky-500/25" : "bg-sky-400/25"
+          className={`w-28 sm:w-36 h-3 rounded-full blur-md animate-shadow-pulse mt-2 transition-colors ${
+            isDark ? "bg-cyan-500/20" : "bg-slate-400/30"
           }`}
         />
       </div>
     );
   }
 
+  // ========================================================
+  // B. TAMPILAN MINI (HEADER & SIDEBAR)
+  // ========================================================
   if (size === "xs") {
     return (
       <div
-        className={`relative w-8 h-8 rounded-full overflow-hidden flex items-center justify-center shrink-0 ${className}`}
+        className={`relative w-8 h-8 rounded-full overflow-hidden flex items-center justify-center shrink-0 ${className} ${
+          isDark ? "bg-transparent" : "bg-transparent"
+        }`}
       >
         <video
           ref={videoRef}
@@ -85,9 +105,10 @@ export const MascotCharacter = ({
           loop
           muted
           playsInline
-          className="w-full h-full object-cover scale-105"
+          className={`w-full h-full object-cover scale-[2.8] ${
+            isDark ? "mix-blend-normal" : "mix-blend-multiply"
+          }`}
         >
-          <source src="/mascot.webm" type="video/webm" />
           <source src="/mascot.mp4" type="video/mp4" />
         </video>
         {isSpeaking && (
@@ -97,7 +118,9 @@ export const MascotCharacter = ({
     );
   }
 
-  // Ukuran "md" untuk Avatar di Percakapan Chat
+  // ========================================================
+  // C. TAMPILAN AVATAR CHAT BUBBLE
+  // ========================================================
   return (
     <div className={`relative flex items-center gap-2 shrink-0 ${className}`}>
       <div
@@ -115,9 +138,10 @@ export const MascotCharacter = ({
           loop
           muted
           playsInline
-          className="w-full h-full object-cover scale-105"
+          className={`w-full h-full object-cover scale-[2.8] ${
+            isDark ? "mix-blend-normal" : "mix-blend-multiply"
+          }`}
         >
-          <source src="/mascot.webm" type="video/webm" />
           <source src="/mascot.mp4" type="video/mp4" />
         </video>
       </div>
