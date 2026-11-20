@@ -69,8 +69,8 @@ const HERO_ACTION_CARDS = [
 
 /**
  * Komponen Utama ChatUI untuk Chatbot AURA-FST (FR-001)
- * Dilengkapi dengan Maskot Animasi Karakter, Toggle Light/Dark Mode, Copy Message,
- * Tombol Send interaktif, Auto-scroll & Floating Scroll-to-bottom button.
+ * Dilengkapi dengan Maskot Lingkaran Presisi, Pemisahan Try-Catch Gemini & Supabase,
+ * Toggle Light/Dark Mode, Copy Message, Tombol Send interaktif, & Floating Scroll button.
  */
 export const ChatUI = ({
   theme = "dark",
@@ -129,7 +129,7 @@ export const ChatUI = ({
           }
         }
       } catch (error) {
-        console.warn("Sesi belum aktif / mode guest:", error?.message);
+        console.warn("Sesi belum aktif / mode guest (tidak ada riwayat cloud):", error?.message);
       } finally {
         if (!cancelled) {
           setIsHistoryLoading(false);
@@ -317,7 +317,7 @@ export const ChatUI = ({
     }
   }, [conversations, isHistoryLoading, activeConversationId]);
 
-  // Handler pengiriman pesan utama
+  // Handler pengiriman pesan utama dengan pemisahan try-catch Gemini & Supabase
   const handleSendMessage = async (textToSend) => {
     const rawText = textToSend || inputText;
     if (!rawText.trim() || isLoading) return;
@@ -346,8 +346,10 @@ export const ChatUI = ({
     setInputText("");
     setIsLoading(true);
 
+    // ========================================================
+    // 1. SIMPAN PESAN USER KE SUPABASE (ISOLATED TRY-CATCH)
+    // ========================================================
     let currentConvId = activeConversationId;
-
     if (userId) {
       try {
         if (!currentConvId) {
@@ -365,21 +367,29 @@ export const ChatUI = ({
         }
 
         if (currentConvId) {
-          await saveUserMessage(currentConvId, validation.sanitizedText);
+          await saveUserMessage(currentConvId, userId, validation.sanitizedText);
           await updateConversationTime(currentConvId);
         }
-      } catch (err) {
-        console.warn("Gagal menyimpan ke Supabase:", err);
+      } catch (dbErr) {
+        console.error("Catatan: Penyimpanan pesan user ke Supabase gagal (tetap lanjut ke Gemini):", dbErr);
       }
     }
 
+    // ========================================================
+    // 2. PEMANGGILAN API GEMINI (ISOLATED TRY-CATCH)
+    // ========================================================
+    let aiResponseText = "";
     try {
       const response = await askGeminiFST(validation.sanitizedText);
+      aiResponseText =
+        typeof response === "object" && response !== null
+          ? response.text || response.response
+          : response;
 
       const botMsg = {
         id: `bot-${Date.now()}`,
         sender: "bot",
-        text: response.text,
+        text: aiResponseText,
         timestamp: new Date().toLocaleTimeString([], {
           hour: "2-digit",
           minute: "2-digit",
@@ -387,12 +397,8 @@ export const ChatUI = ({
       };
 
       setMessages((prev) => [...prev, botMsg]);
-
-      if (currentConvId) {
-        await saveAssistantMessage(currentConvId, response.text);
-      }
-    } catch (error) {
-      console.error("Gagal mendapatkan balasan dari AI:", error);
+    } catch (geminiError) {
+      console.error("Detail error asli saat memanggil Gemini API:", geminiError);
       const fallbackMsg = {
         id: `bot-err-${Date.now()}`,
         sender: "bot",
@@ -403,8 +409,22 @@ export const ChatUI = ({
         }),
       };
       setMessages((prev) => [...prev, fallbackMsg]);
+      setIsLoading(false);
+      return; // Hentikan alur jika pemanggilan AI gagal
     } finally {
       setIsLoading(false);
+    }
+
+    // ========================================================
+    // 3. SIMPAN JAWABAN BOT KE SUPABASE (ISOLATED TRY-CATCH)
+    // Jawaban AI yang SUDAH didapat TIDAK akan hilang jika ini gagal!
+    // ========================================================
+    if (userId && currentConvId && aiResponseText) {
+      try {
+        await saveAssistantMessage(currentConvId, userId, aiResponseText);
+      } catch (dbAssistantErr) {
+        console.error("Catatan: Gagal menyimpan jawaban AI ke Supabase (jawaban tetap tampil di UI):", dbAssistantErr);
+      }
     }
   };
 
@@ -517,7 +537,7 @@ export const ChatUI = ({
         </div>
       </header>
 
-      {/* Area Konten Utama: Padding atas cukup agar maskot tidak terpotong, padding bawah pb-32/36 agar kartu tidak tertutup input */}
+      {/* Area Konten Utama: Padding atas lega agar maskot tidak terpotong, padding bawah pb-32/36 agar kartu tidak tertutup input */}
       <main
         ref={mainContainerRef}
         onScroll={handleScroll}
@@ -526,7 +546,7 @@ export const ChatUI = ({
         {isInitialWelcome ? (
           /* TAMPILAN HERO: KARAKTER MURNI MELAYANG DI TENGAH DENGAN SPACING LEGA */
           <div className="my-auto flex flex-col items-center justify-center text-center max-w-2xl mx-auto w-full pt-2 sm:pt-4 pb-6">
-            {/* Karakter Maskot Melayang Murni Tanpa Frame Kotak */}
+            {/* Karakter Maskot Lingkaran Presisi Tanpa Kotak Background */}
             <div className="mb-3 sm:mb-4">
               <MascotCharacter size="hero" theme={theme} />
             </div>
@@ -620,7 +640,7 @@ export const ChatUI = ({
               ) : (
                 /* Balasan Karakter Maskot Bot */
                 <div key={msg.id} className="flex items-start gap-3 sm:gap-4">
-                  {/* Maskot Avatar dengan Animasi Ekspresi Mulut saat Berbicara */}
+                  {/* Maskot Avatar dengan Lingkaran Presisi & Animasi Ekspresi Mulut */}
                   <MascotCharacter
                     size="md"
                     theme={theme}

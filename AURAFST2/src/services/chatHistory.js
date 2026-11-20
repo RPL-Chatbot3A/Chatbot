@@ -1,4 +1,3 @@
-
 import { supabase } from '../config/supabase';
 
 // Membuat percakapan baru
@@ -8,13 +7,14 @@ export async function createConversation(userId, title = 'Percakapan Baru') {
     .insert([
       {
         user_id: userId,
-        title: title
-      }
+        title: title,
+      },
     ])
     .select()
     .single();
 
   if (error) {
+    console.error('Gagal membuat percakapan di Supabase:', error);
     throw error;
   }
 
@@ -30,28 +30,36 @@ export async function getConversations(userId) {
     .order('updated_at', { ascending: false });
 
   if (error) {
+    console.error('Gagal mengambil daftar percakapan dari Supabase:', error);
     throw error;
   }
 
   return data;
 }
 
-// Menyimpan pesan pengguna
-export async function saveUserMessage(conversationId, userId, content) {
+// Menyimpan pesan pengguna (mendukung 2 atau 3 argumen agar aman dari salah urutan)
+export async function saveUserMessage(conversationId, userIdOrContent, maybeContent) {
+  const hasThreeArgs = maybeContent !== undefined;
+  const userId = hasThreeArgs ? userIdOrContent : null;
+  const content = hasThreeArgs ? maybeContent : userIdOrContent;
+
+  const payload = {
+    conversation_id: conversationId,
+    role: 'user',
+    content: content,
+  };
+  if (userId) {
+    payload.user_id = userId;
+  }
+
   const { data, error } = await supabase
     .from('messages')
-    .insert([
-      {
-        conversation_id: conversationId,
-        user_id: userId,
-        role: 'user',
-        content: content
-      }
-    ])
+    .insert([payload])
     .select()
     .single();
 
   if (error) {
+    console.error('Gagal menyimpan pesan user ke Supabase:', error);
     throw error;
   }
 
@@ -67,6 +75,7 @@ export async function getMessages(conversationId) {
     .order('created_at', { ascending: true });
 
   if (error) {
+    console.error('Gagal mengambil pesan dari Supabase:', error);
     throw error;
   }
 
@@ -81,6 +90,7 @@ export async function updateConversationTime(conversationId) {
     .eq('id', conversationId);
 
   if (error) {
+    console.error('Gagal memperbarui waktu percakapan di Supabase:', error);
     throw error;
   }
 }
@@ -92,30 +102,39 @@ export async function updateConversationTitle(conversationId, title) {
     .update({ title })
     .eq('id', conversationId);
 
-  if (error) throw error;
+  if (error) {
+    console.error('Gagal memperbarui judul percakapan di Supabase:', error);
+    throw error;
+  }
 }
 
-
-// Menyimpan jawaban AI ke Supabase
+// Menyimpan jawaban AI ke Supabase (mendukung 2 atau 3 argumen)
 export async function saveAssistantMessage(
   conversationId,
-  userId,
-  content
+  userIdOrContent,
+  maybeContent
 ) {
+  const hasThreeArgs = maybeContent !== undefined;
+  const userId = hasThreeArgs ? userIdOrContent : null;
+  const content = hasThreeArgs ? maybeContent : userIdOrContent;
+
+  const payload = {
+    conversation_id: conversationId,
+    role: 'assistant',
+    content: content,
+  };
+  if (userId) {
+    payload.user_id = userId;
+  }
+
   const { data, error } = await supabase
     .from('messages')
-    .insert([
-      {
-        conversation_id: conversationId,
-        user_id: userId,
-        role: 'assistant',
-        content: content
-      }
-    ])
+    .insert([payload])
     .select()
     .single();
 
   if (error) {
+    console.error('Gagal menyimpan pesan AI ke Supabase:', error);
     throw error;
   }
 
@@ -129,5 +148,8 @@ export async function deleteConversation(conversationId) {
     .delete()
     .eq('id', conversationId);
 
-  if (error) throw error;
+  if (error) {
+    console.error('Gagal menghapus percakapan di Supabase:', error);
+    throw error;
+  }
 }

@@ -101,7 +101,8 @@ PERAN & BATASAN RUANG LINGKUP (GUARDRAILS):
 
 1. PRIORITAS UTAMA (PEDOMAN AKADEMIK RESMI):
    - Jika pengguna bertanya mengenai aturan akademik kampus (KRS, SKS, masa studi, cuti, DO, predikat kelulusan/Cum Laude, syarat sidang TA, nilai PPB, alur PMB, layanan TU), Anda WAJIB menjawab sesuai DOKUMEN PEDOMAN AKADEMIK RESMI di bawah (SK Rektor No. 1617 Tahun 2024).
-   - Jika pengguna bertanya mengenai siapa pembuat chatbotnya maka akan di jawab yaitu anak mahasiswa Teknik Informatika 25
+   - Jika pengguna bertanya mengenai siapa pembuat chatbotnya maka akan di jawab yaitu anak mahasiswa Teknik Informatika 25.
+
 2. PENGETAHUAN GLOBAL TERBATAS (KHUSUS SAINS & KULIAH):
    - Anda DIIZINKAN menjawab pertanyaan global TERBATAS HANYA pada lingkup:
      * Sains & Matematika (rumus, teori fisika, kimia, biologi, kalkulus, statistika).
@@ -123,7 +124,7 @@ ${FAQ_KNOWLEDGE_BASE}
 };
 
 /**
- * Mengirim pesan ke Gemini API dengan efisiensi tinggi
+ * Mengirim pesan ke Gemini API menggunakan model gemini-2.5-flash
  * @param {string} userMessage - Pesan dari pengguna
  * @param {Function} [onChunk] - Callback realtime stream
  * @returns {Promise<string>}
@@ -139,23 +140,25 @@ export const askGeminiFST = async (userMessage, onChunk) => {
   // 2. Cek API Key
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   if (!apiKey || apiKey.includes('MASUKKAN_GEMINI_API_KEY')) {
-    throw new Error('Kunci API Gemini (VITE_GEMINI_API_KEY) belum dikonfigurasi di file .env');
+    const keyErr = new Error('Kunci API Gemini (VITE_GEMINI_API_KEY) belum dikonfigurasi di file .env');
+    console.error('Kunci API Gemini belum tersedia:', keyErr);
+    throw keyErr;
   }
 
-  // 3. Konfigurasi model flash-lite
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:streamGenerateContent?alt=sse&key=${apiKey}`;
+  // 3. Konfigurasi model gemini-2.5-flash
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=${apiKey}`;
 
   const payload = {
     contents: [{ parts: [{ text: userMessage }] }],
     system_instruction: { parts: [{ text: buildSystemInstruction() }] },
     generationConfig: {
-      temperature: 0.2,      // Cukup presisi untuk rumus & aturan, tetapi luwes untuk sains/koding
-      maxOutputTokens: 300,  // Cepat dan hemat token
+      temperature: 0.2,      // Presisi untuk rumus & aturan, tetapi luwes untuk sains/koding
+      maxOutputTokens: 500,  // Cepat dan hemat token
     },
   };
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 7000);
+  const timeoutId = setTimeout(() => controller.abort(), 12000);
 
   try {
     const response = await fetch(endpoint, {
@@ -169,7 +172,12 @@ export const askGeminiFST = async (userMessage, onChunk) => {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      const errMsg = errorData?.error?.message || '';
+      const errMsg = errorData?.error?.message || `HTTP ${response.status} (${response.statusText})`;
+      console.error('Detail error response dari Gemini API:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorData,
+      });
 
       if (response.status === 503 || response.status === 429 || errMsg.toLowerCase().includes('demand')) {
         const busyMsg = `⚠️ Server AI sedang padat. Namun Anda tetap dapat menggunakan menu cepat di atas atau hubungi WhatsApp TU FST di **0812-3456-7890**.`;
@@ -177,7 +185,7 @@ export const askGeminiFST = async (userMessage, onChunk) => {
         return busyMsg;
       }
 
-      throw new Error(errMsg || `HTTP Error ${response.status}`);
+      throw new Error(`Gemini API Error: ${errMsg}`);
     }
 
     // 4. Stream chunks realtime ke UI
@@ -226,7 +234,7 @@ export const askGeminiFST = async (userMessage, onChunk) => {
       return timeoutMsg;
     }
 
-    console.error('Error pada askGeminiFST:', err);
+    console.error('Detail error asli pada askGeminiFST:', err);
     throw err;
   }
 };
