@@ -53,22 +53,35 @@ export const MascotCharacter = ({
       xmlns="http://www.w3.org/2000/svg"
     >
       <defs>
-        {/* Gradasi 3D Utama Bola: Ungu-Violet atas -> Cyan-Biru cerah bawah */}
+        {/* Gradasi 3D Utama Bola AURA-FST: Cyan cerah di atas -> Biru Elektrik di bawah */}
         <radialGradient
           id={`bodyGrad-${id}`}
           cx="38%"
           cy="28%"
-          r="72%"
-          fx="32%"
+          r="74%"
+          fx="34%"
           fy="22%"
         >
-          <stop offset="0%" stopColor="#C4B5FD" />
-          <stop offset="18%" stopColor="#8B5CF6" />
-          <stop offset="42%" stopColor="#6366F1" />
-          <stop offset="68%" stopColor="#0EA5E9" />
-          <stop offset="92%" stopColor="#0284C7" />
-          <stop offset="100%" stopColor="#0369A1" />
+          <stop offset="0%" stopColor="#E0F2FE" />
+          <stop offset="16%" stopColor="#38BDF8" />
+          <stop offset="42%" stopColor="#0EA5E9" />
+          <stop offset="70%" stopColor="#0284C7" />
+          <stop offset="92%" stopColor="#0369A1" />
+          <stop offset="100%" stopColor="#075985" />
         </radialGradient>
+
+        {/* Gradasi Halo Cahaya Putih-Cyan di Busur Atas Karakter (persis avatar AURA-FST) */}
+        <linearGradient
+          id={`topHaloGrad-${id}`}
+          x1="0%"
+          y1="100%"
+          x2="0%"
+          y2="0%"
+        >
+          <stop offset="0%" stopColor="#38BDF8" stopOpacity="0" />
+          <stop offset="50%" stopColor="#BAE6FD" stopOpacity="0.85" />
+          <stop offset="100%" stopColor="#FFFFFF" stopOpacity="1" />
+        </linearGradient>
 
         {/* Kilauan Cahaya Glossy di Sisi Kiri Atas */}
         <linearGradient
@@ -78,24 +91,24 @@ export const MascotCharacter = ({
           x2="80%"
           y2="80%"
         >
-          <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.75" />
-          <stop offset="45%" stopColor="#FFFFFF" stopOpacity="0.25" />
+          <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.85" />
+          <stop offset="45%" stopColor="#FFFFFF" stopOpacity="0.3" />
           <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
         </linearGradient>
 
         {/* Pantulan Cahaya Tepi Halus (Rim Light) Bawah */}
         <radialGradient
           id={`rimGrad-${id}`}
-          cx="60%"
-          cy="85%"
-          r="50%"
+          cx="50%"
+          cy="92%"
+          r="48%"
         >
-          <stop offset="0%" stopColor="#38BDF8" stopOpacity="0.5" />
+          <stop offset="0%" stopColor="#38BDF8" stopOpacity="0.65" />
           <stop offset="100%" stopColor="#0284C7" stopOpacity="0" />
         </radialGradient>
 
-        {/* Filter Soft Glow saat Aktif/Berpikir */}
-        <filter id={`eyeGlow-${id}`} x="-30%" y="-30%" width="160%" height="160%">
+        {/* Filter Soft Glow untuk Halo & Mata */}
+        <filter id={`softGlow-${id}`} x="-30%" y="-30%" width="160%" height="160%">
           <feGaussianBlur stdDeviation="3.5" result="blur" />
           <feComposite in="SourceGraphic" in2="blur" operator="over" />
         </filter>
@@ -105,8 +118,8 @@ export const MascotCharacter = ({
             dx="0"
             dy="8"
             stdDeviation="10"
-            floodColor={isDark ? "#0284C7" : "#0284C7"}
-            floodOpacity={isDark ? "0.35" : "0.22"}
+            floodColor="#0284C7"
+            floodOpacity={isDark ? "0.4" : "0.25"}
           />
         </filter>
       </defs>
@@ -131,33 +144,29 @@ export const MascotCharacter = ({
         @keyframes auraEyePulse {
           0%, 100% {
             opacity: 1;
-            filter: drop-shadow(0 0 6px rgba(255,255,255,0.95)) drop-shadow(0 0 12px rgba(56,189,248,0.8));
+            filter: drop-shadow(0 0 6px rgba(255,255,255,0.95)) drop-shadow(0 0 12px rgba(56,189,248,0.85));
           }
           50% {
-            opacity: 0.82;
-            filter: drop-shadow(0 0 2px rgba(255,255,255,0.7)) drop-shadow(0 0 5px rgba(56,189,248,0.5));
+            opacity: 0.85;
+            filter: drop-shadow(0 0 3px rgba(255,255,255,0.7)) drop-shadow(0 0 6px rgba(56,189,248,0.5));
           }
         }
         .aura-character-floating {
           animation: auraFloatAnim 3.8s ease-in-out infinite;
           transform-origin: center;
         }
-        .aura-eye-left {
-          transform-origin: 79px 96px;
+        .aura-eye ellipse {
+          transform-origin: center;
           animation: auraBlinkAnim 3.6s ease-in-out infinite;
         }
-        .aura-eye-right {
-          transform-origin: 121px 94px;
-          animation: auraBlinkAnim 3.6s ease-in-out infinite;
-        }
-        .aura-eye-active {
+        .aura-eye-active ellipse {
           animation: auraBlinkAnim 3.6s ease-in-out infinite, auraEyePulse 1.2s ease-in-out infinite;
         }
       `}</style>
 
       {/* Konten Karakter dengan Animasi Melayang */}
       <g className="aura-character-floating">
-        {/* 1. Bola 3D Glossy Sempurna */}
+        {/* 1. Bola 3D Glossy Sempurna (Cyan-Biru Elektrik) */}
         <circle
           cx="100"
           cy="100"
@@ -174,53 +183,62 @@ export const MascotCharacter = ({
           fill={`url(#rimGrad-${id})`}
         />
 
-        {/* 3. Kilauan Cahaya Glossy Utama di Kiri Atas */}
+        {/* 3. Busur Halo Putih Glowing di Atas Karakter (Ciri Khas Maskot AURA-FST) */}
+        <path
+          d="M 36 78 A 82 82 0 0 1 164 78"
+          fill="none"
+          stroke={`url(#topHaloGrad-${id})`}
+          strokeWidth="11"
+          strokeLinecap="round"
+          filter={`url(#softGlow-${id})`}
+          opacity="0.95"
+        />
+
+        {/* Kilauan Cahaya Glossy di Sisi Kiri Atas */}
         <ellipse
-          cx="76"
-          cy="56"
-          rx="46"
-          ry="25"
-          transform="rotate(-28 76 56)"
+          cx="74"
+          cy="54"
+          rx="44"
+          ry="22"
+          transform="rotate(-26 74 54)"
           fill={`url(#glossGrad-${id})`}
         />
 
-        {/* Kilauan Cahaya Titik Lembut Tambahan */}
+        {/* Kilauan Titik Cahaya Halus */}
         <circle
-          cx="60"
+          cx="58"
           cy="46"
           r="6.5"
           fill="#FFFFFF"
-          opacity="0.65"
+          opacity="0.75"
         />
 
-        {/* 4. Dua Mata Putih Lonjong di Bagian Tengah-Atas */}
-        {/* Mata Kiri */}
+        {/* 4. Dua Mata Putih Lonjong Miring Sejajar (Sesuai Persis dengan Avatar Foto AURA-FST) */}
+        {/* Mata Kiri (cx=82, cy=108, tilt -16deg) */}
         <g
-          className={`aura-eye-left ${activeState ? "aura-eye-active" : ""}`}
+          transform="translate(82, 108) rotate(-16)"
+          className={`aura-eye ${activeState ? "aura-eye-active" : ""}`}
         >
           <ellipse
-            cx="79"
-            cy="96"
-            rx="11.5"
-            ry="17.5"
-            transform="rotate(-4 79 96)"
+            cx="0"
+            cy="0"
+            rx="12.5"
+            ry="19.5"
             fill="#FFFFFF"
-            filter={activeState ? `url(#eyeGlow-${id})` : "none"}
           />
         </g>
 
-        {/* Mata Kanan */}
+        {/* Mata Kanan (cx=124, cy=98, sedikit lebih tinggi, tilt -16deg) */}
         <g
-          className={`aura-eye-right ${activeState ? "aura-eye-active" : ""}`}
+          transform="translate(124, 98) rotate(-16)"
+          className={`aura-eye ${activeState ? "aura-eye-active" : ""}`}
         >
           <ellipse
-            cx="121"
-            cy="94"
-            rx="11.5"
-            ry="17.5"
-            transform="rotate(4 121 94)"
+            cx="0"
+            cy="0"
+            rx="13.5"
+            ry="20.5"
             fill="#FFFFFF"
-            filter={activeState ? `url(#eyeGlow-${id})` : "none"}
           />
         </g>
       </g>

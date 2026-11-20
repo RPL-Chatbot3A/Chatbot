@@ -5,12 +5,10 @@ export async function getOrCreateUserSession() {
   const { data, error } = await supabase.auth.getSession();
 
   if (error) {
-    throw error;
+    console.warn('Gagal mengecek sesi Supabase:', error.message);
+    return null;
   }
 
-  if (!data.session) {
-    throw new Error('Sesi login tidak ditemukan. Silakan login kembali.');
-  }
-
-  return data.session;
+  // Jika belum login / mode tamu, kembalikan null secara aman tanpa melempar error
+  return data?.session ?? null;
 }

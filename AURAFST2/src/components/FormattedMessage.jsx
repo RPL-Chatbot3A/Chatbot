@@ -7,6 +7,7 @@ import 'katex/dist/katex.min.css';
  * dan merender rumus matematika LaTeX (misal $c = \sqrt{a^2 + b^2}$) menjadi simbol visual rapi via KaTeX.
  *
  * Seluruh elemen memiliki warna teks dinamis yang kontras baik di Light Mode maupun Dark Mode.
+ * Regex bold disempurnakan agar teks dalam kutip ter-render tebal tanpa sisa tanda bintang.
  *
  * @param {{ content: string, theme?: string }} props
  */
@@ -97,7 +98,7 @@ export const FormattedMessage = ({ content, theme = 'dark' }) => {
 };
 
 /**
- * Memproses satu baris teks: menangani LaTeX ($...$ atau $$...$$), Inline Code (`code`), dan Bold (**...**)
+ * Memproses satu baris teks: menangani LaTeX ($...$ atau $$...$$), Inline Code, dan Bold (**...**)
  * @param {string} text
  * @param {number|string} lineIndex
  * @returns {React.ReactNode[]}
@@ -125,7 +126,7 @@ const renderLineWithMathAndBold = (text, lineIndex) => {
 
         return (
           <span
-            key={`${lineIndex}-math-${index}`}
+            key={String(lineIndex) + '-math-' + String(index)}
             className="inline-block px-1 py-0.5 mx-0.5"
             dangerouslySetInnerHTML={{ __html: html }}
           />
@@ -133,7 +134,7 @@ const renderLineWithMathAndBold = (text, lineIndex) => {
       } catch (err) {
         return (
           <code
-            key={`${lineIndex}-math-err-${index}`}
+            key={String(lineIndex) + '-math-err-' + String(index)}
             className="text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded font-mono text-rose-600 dark:text-rose-400"
           >
             {part}
@@ -143,12 +144,13 @@ const renderLineWithMathAndBold = (text, lineIndex) => {
     }
 
     // Jika bukan rumus matematika, proses format inline code & format tebal (**teks**)
-    return renderInlineCodeAndBold(part, `${lineIndex}-${index}`);
+    return renderInlineCodeAndBold(part, String(lineIndex) + '-' + String(index));
   });
 };
 
 /**
- * Memproses format Inline Code (`kode`) dan Bold (**teks**)
+ * Memproses format Inline Code dan Bold (**teks**)
+ * Menggunakan regex bold untuk teks bertanda kutip agar ter-render rapi tanpa sisa tanda bintang.
  * @param {string} text
  * @param {string} keyPrefix
  * @returns {React.ReactNode[]}
@@ -162,7 +164,7 @@ const renderInlineCodeAndBold = (text, keyPrefix) => {
     if (segment.startsWith('`') && segment.endsWith('`') && segment.length >= 2) {
       return (
         <code
-          key={`${keyPrefix}-code-${cIdx}`}
+          key={keyPrefix + '-code-' + cIdx}
           className="text-xs font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-sky-700 dark:text-sky-300 border border-slate-200 dark:border-slate-700 mx-0.5"
         >
           {segment.slice(1, -1)}
@@ -171,21 +173,21 @@ const renderInlineCodeAndBold = (text, keyPrefix) => {
     }
 
     // Format Bold (**teks**)
-    const boldRegex = /(\*\*[^*]+?\*\*)/g;
+    const boldRegex = /(\*\*.+?\*\*)/g;
     const subParts = segment.split(boldRegex);
 
     return subParts.map((sub, bIdx) => {
-      if (sub.startsWith('**') && sub.endsWith('**')) {
+      if (sub.startsWith('**') && sub.endsWith('**') && sub.length >= 4) {
         return (
           <strong
-            key={`${keyPrefix}-bold-${cIdx}-${bIdx}`}
+            key={keyPrefix + '-bold-' + cIdx + '-' + bIdx}
             className="font-bold text-slate-950 dark:text-white"
           >
             {sub.slice(2, -2)}
           </strong>
         );
       }
-      return <span key={`${keyPrefix}-text-${cIdx}-${bIdx}`}>{sub}</span>;
+      return <span key={keyPrefix + '-text-' + cIdx + '-' + bIdx}>{sub}</span>;
     });
   });
 };

@@ -124,12 +124,17 @@ ${FAQ_KNOWLEDGE_BASE}
 };
 
 /**
- * Mengirim pesan ke Gemini API menggunakan model Gemini Flash terbaru dan ringan
+ * Mengirim pesan ke Gemini API dengan riwayat multi-turn chat (conversationHistory)
  * @param {string} userMessage - Pesan dari pengguna
- * @param {Function} [onChunk] - Callback realtime stream
+ * @param {Array<{role: string, text: string}>|Function} [historyOrChunk] - Riwayat chat sesi aktif atau callback stream
+ * @param {Function} [maybeChunk] - Callback realtime stream
  * @returns {Promise<string>}
  */
-export const askGeminiFST = async (userMessage, onChunk) => {
+export const askGeminiFST = async (userMessage, historyOrChunk, maybeChunk) => {
+  // Parsing parameter fleksibel
+  const history = Array.isArray(historyOrChunk) ? historyOrChunk : [];
+  const onChunk = typeof historyOrChunk === 'function' ? historyOrChunk : maybeChunk;
+
   // 1. Sanitasi teks input pengguna dan pastikan string terisi
   const messageText = typeof userMessage === 'string'
     ? userMessage.trim()
@@ -139,11 +144,13 @@ export const askGeminiFST = async (userMessage, onChunk) => {
     throw new Error('Pesan pengguna kosong atau tidak valid.');
   }
 
-  // 2. Cek instan respons lokal (0ms latency untuk sapaan & quick buttons)
-  const instantAnswer = findInstantAnswer(messageText);
-  if (instantAnswer) {
-    if (typeof onChunk === 'function') onChunk(instantAnswer, instantAnswer);
-    return instantAnswer;
+  // 2. Cek instan respons lokal (0ms latency untuk sapaan & quick buttons jika tanpa konteks sebelumnya)
+  if (history.length === 0) {
+    const instantAnswer = findInstantAnswer(messageText);
+    if (instantAnswer) {
+      if (typeof onChunk === 'function') onChunk(instantAnswer, instantAnswer);
+      return instantAnswer;
+    }
   }
 
   // 3. Cek API Key
@@ -154,24 +161,67 @@ export const askGeminiFST = async (userMessage, onChunk) => {
     throw keyErr;
   }
 
-  // 4. Model Gemini Flash Terbaru & Ringan (gemini-3.8-flash)
+  // 4. Model Gemini Flash Terbaru & Ringan
   const primaryModel = 'gemini-3.8-flash';
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${primaryModel}:streamGenerateContent?alt=sse&key=${apiKey}`;
 
-  // Pastikan struktur contents memiliki parts: [{ text: messageText }] yang valid
+  // 5. Susun contents dengan riwayat percakapan (Multi-turn Context)
+  const formattedContents = [];
+
+  if (Array.isArray(history) && history.length > 0) {
+    // Ambil maksimal 8-10 pesan terakhir agar tetap hemat token dan fokus
+    const recentHistory = history.slice(-10);
+
+    for (const item of recentHistory) {
+      const itemText = typeof item?.text === 'string'
+        ? item.text.trim()
+        : String(item?.text || '').trim();
+
+      if (!itemText) continue;
+
+      const itemRole = (item.role === 'model' || item.sender === 'bot') ? 'model' : 'user';
+
+      // Turn pertama di Gemini API harus selalu role 'user'
+      if (formattedContents.length === 0 && itemRole !== 'user') {
+        continue;
+      }
+
+      // Hindari duplikasi role yang sama berurutan
+      const lastItem = formattedContents[formattedContents.length - 1];
+      if (lastItem && lastItem.role === itemRole) {
+        lastItem.parts[0].text += `\n${itemText}`;
+      } else {
+        formattedContents.push({
+          role: itemRole,
+          parts: [{ text: itemText }],
+        });
+      }
+    }
+  }
+
+  // Pastikan pesan terakhir di riwayat tidak 'user' berurutan dengan pertanyaan saat ini
+  const lastHistoryItem = formattedContents[formattedContents.length - 1];
+  if (lastHistoryItem && lastHistoryItem.role === 'user') {
+    formattedContents.push({
+      role: 'model',
+      parts: [{ text: 'Baik, silakan lanjutkan pertanyaan Anda.' }],
+    });
+  }
+
+  // Tambahkan pertanyaan user saat ini di bagian akhir contents
+  formattedContents.push({
+    role: 'user',
+    parts: [{ text: messageText }],
+  });
+
   const payload = {
-    contents: [
-      {
-        role: 'user',
-        parts: [{ text: messageText }],
-      },
-    ],
+    contents: formattedContents,
     system_instruction: {
       parts: [{ text: buildSystemInstruction() }],
     },
     generationConfig: {
-      temperature: 0.2,      // Presisi untuk rumus & aturan, tetapi luwes untuk sains/koding
-      maxOutputTokens: 500,  // Cepat dan hemat token
+      temperature: 0.2,      // Presisi untuk aturan & rumus, luwes untuk sains/koding
+      maxOutputTokens: 600,  // Cepat dan hemat token
     },
   };
 
@@ -207,7 +257,7 @@ export const askGeminiFST = async (userMessage, onChunk) => {
       throw new Error(`Gemini API Error (${response.status}): ${errMsg}`);
     }
 
-    // 5. Stream chunks realtime ke UI
+    // 6. Stream chunks realtime ke UI
     const reader = response.body.getReader();
     const decoder = new TextDecoder('utf-8');
     let accumulatedText = '';

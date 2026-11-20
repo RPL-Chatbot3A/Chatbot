@@ -69,8 +69,8 @@ const HERO_ACTION_CARDS = [
 
 /**
  * Komponen Utama ChatUI untuk Chatbot AURA-FST (FR-001)
- * Dilengkapi dengan Transisi Animasi Halus (Hero ke Mode Chat), Bubble Chat Instan,
- * FormattedMessage Dinamis (Light/Dark), dan Integrasi Gemini / Supabase yang Tangguh.
+ * Dilengkapi dengan Multi-turn Context Memory (Konteks Percakapan Nyambung),
+ * FormattedMessage Regex Bold disempurnakan, dan Transisi Halus.
  */
 export const ChatUI = ({
   theme = "dark",
@@ -325,6 +325,15 @@ export const ChatUI = ({
       minute: "2-digit",
     });
 
+    // Ambil riwayat chat sebelum pesan baru ditambahkan untuk dikirim ke Gemini (Multi-turn Context)
+    const currentChatHistory = (messages || [])
+      .filter((m) => m && m.text && String(m.text).trim())
+      .slice(-10)
+      .map((m) => ({
+        role: m.sender === "user" ? "user" : "model",
+        text: String(m.text).trim(),
+      }));
+
     // 1. OPTIMISTIC UI UPDATE: Pertanyaan langsung tampil sebagai bubble chat pertama
     const userMsg = {
       id: `user-${Date.now()}`,
@@ -371,11 +380,12 @@ export const ChatUI = ({
     }
 
     // ========================================================
-    // 3. PEMANGGILAN API GEMINI (ISOLATED TRY-CATCH)
+    // 3. PEMANGGILAN API GEMINI DENGAN KONTEKS RIWAYAT (MULTI-TURN)
     // ========================================================
     let aiResponseText = "";
     try {
-      const response = await askGeminiFST(cleanText);
+      // Kirim cleanText bersama currentChatHistory agar AI mengingat konteks percakapan sebelumnya
+      const response = await askGeminiFST(cleanText, currentChatHistory);
       aiResponseText =
         typeof response === "object" && response !== null
           ? response.text || response.response
