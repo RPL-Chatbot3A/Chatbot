@@ -54,6 +54,14 @@ const INSTANT_MAP = [
 • **Kontak WhatsApp Resmi:** **0812-3456-7890**
 • **Jam Layanan:** Senin – Jumat, pukul **08.00 – 16.00 WIB** (Sabtu, Minggu & Hari Libur Nasional Tutup).`,
   },
+  {
+    keywords: ['sains', 'koding', 'sains & koding', 'materi kuliah', 'pemrograman', 'rumus matematika', 'bantu saya memahami materi'],
+    response: `🔬 **Bantuan Materi Sains, Teknologi & Koding FST:**
+
+• **Bidang Keilmuan:** Matematika & Kalkulus, Statistika, Fisika Dasar, Kimia, Biologi, Pemrograman (Python, JavaScript, Java, C++), Basis Data (SQL), AI/Machine Learning, dan Jaringan Komputer.
+• **Dukungan Formula LaTeX:** AURA-FST dapat merender rumus matematika rapi dengan format simbolik visual KaTeX ($...$).
+• **Cara Memulai:** Silakan ketikkan topik, soal, rumus, atau potongan kode yang ingin kamu pelajari (misal: *"Jelaskan konsep Polymorphism dalam OOP"* atau *"Tuliskan rumus turunan fungsi kuadrat"*).`,
+  },
 ];
 
 /**
@@ -144,13 +152,11 @@ export const askGeminiFST = async (userMessage, historyOrChunk, maybeChunk) => {
     throw new Error('Pesan pengguna kosong atau tidak valid.');
   }
 
-  // 2. Cek instan respons lokal (0ms latency untuk sapaan & quick buttons jika tanpa konteks sebelumnya)
-  if (history.length === 0) {
-    const instantAnswer = findInstantAnswer(messageText);
-    if (instantAnswer) {
-      if (typeof onChunk === 'function') onChunk(instantAnswer, instantAnswer);
-      return instantAnswer;
-    }
+  // 2. Cek respons instan lokal (0ms latency untuk sapaan, bantuan, & quick chat buttons)
+  const instantAnswer = findInstantAnswer(messageText);
+  if (instantAnswer) {
+    if (typeof onChunk === 'function') onChunk(instantAnswer, instantAnswer);
+    return instantAnswer;
   }
 
   // 3. Cek API Key
@@ -161,9 +167,8 @@ export const askGeminiFST = async (userMessage, historyOrChunk, maybeChunk) => {
     throw keyErr;
   }
 
-  // 4. Model Gemini Flash Terbaru & Ringan
-  const primaryModel = 'gemini-3.8-flash';
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${primaryModel}:streamGenerateContent?alt=sse&key=${apiKey}`;
+  // 4. Model Gemini Flash Terbaru & Ringan (gemini-3.8-flash)
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:streamGenerateContent?alt=sse&key=${apiKey}`;
 
   // 5. Susun contents dengan riwayat percakapan (Multi-turn Context)
   const formattedContents = [];

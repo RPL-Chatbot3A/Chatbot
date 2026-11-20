@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { validateAndSanitizeTopic } from "../utils/chatValidator";
-import { askGeminiFST } from "../services/geminiService";
+import { askGeminiFST, findInstantAnswer } from "../services/geminiService";
 import { getOrCreateUserSession } from "../services/authService";
 
 import {
@@ -342,6 +342,61 @@ export const ChatUI = ({
       timestamp,
     };
 
+    // ========================================================
+    // 2. CEK RESPONS INSTAN CEPAT (0ms LATENCY UNTUK QUICK CHAT & FAQ KAMPUS)
+    // ========================================================
+    const instantResponse = findInstantAnswer(cleanText);
+
+    if (instantResponse) {
+      const botMsg = {
+        id: `bot-${Date.now()}`,
+        sender: "bot",
+        text: instantResponse,
+        timestamp,
+      };
+
+      // Tampilkan langsung tanpa delay loading!
+      setMessages((prev) => [...(prev || []), userMsg, botMsg]);
+      setInputText("");
+      setIsLoading(false);
+      setTimeout(() => scrollToBottom("smooth"), 30);
+
+      // Simpan riwayat percakapan ke Supabase di latar belakang secara asinkron (non-blocking)
+      if (userId) {
+        (async () => {
+          try {
+            let currentConvId = activeConversationId;
+            if (!currentConvId) {
+              const textForTitle = cleanText || "Percakapan";
+              const title =
+                textForTitle.length > 30
+                  ? `${textForTitle.substring(0, 30)}...`
+                  : textForTitle;
+
+              const newConv = await createConversation(userId, title);
+              if (newConv) {
+                currentConvId = newConv.id;
+                setActiveConversationId(newConv.id);
+                setConversations((prev) => [newConv, ...(prev || [])]);
+              }
+            }
+
+            if (currentConvId) {
+              await saveUserMessage(currentConvId, userId, cleanText);
+              await saveAssistantMessage(currentConvId, userId, instantResponse);
+              await updateConversationTime(currentConvId);
+            }
+          } catch (dbErr) {
+            console.warn("Penyimpanan riwayat instan ke Supabase dilewati:", dbErr?.message);
+          }
+        })();
+      }
+      return;
+    }
+
+    // ========================================================
+    // 3. JIKA PERTANYAAN KHUSUS (PANGGIL GEMINI DENGAN NON-BLOCKING SUPABASE)
+    // ========================================================
     setMessages((prev) => [...(prev || []), userMsg]);
     setInputText("");
     setIsLoading(true);
@@ -349,42 +404,42 @@ export const ChatUI = ({
     // Auto-scroll ke bawah saat pengguna mengirim pesan
     setTimeout(() => scrollToBottom("smooth"), 50);
 
-    // ========================================================
-    // 2. SIMPAN PESAN USER KE SUPABASE (ISOLATED TRY-CATCH)
-    // ========================================================
-    let currentConvId = activeConversationId;
+    // Simpan pesan user ke Supabase di background agar tidak menahan pemanggilan API
+    let saveConversationPromise = null;
     if (userId) {
-      try {
-        if (!currentConvId) {
-          const textForTitle = cleanText || "Percakapan";
-          const title =
-            textForTitle.length > 30
-              ? `${textForTitle.substring(0, 30)}...`
-              : textForTitle;
+      saveConversationPromise = (async () => {
+        try {
+          let currentConvId = activeConversationId;
+          if (!currentConvId) {
+            const textForTitle = cleanText || "Percakapan";
+            const title =
+              textForTitle.length > 30
+                ? `${textForTitle.substring(0, 30)}...`
+                : textForTitle;
 
-          const newConv = await createConversation(userId, title);
-          if (newConv) {
-            currentConvId = newConv.id;
-            setActiveConversationId(newConv.id);
-            setConversations((prev) => [newConv, ...(prev || [])]);
+            const newConv = await createConversation(userId, title);
+            if (newConv) {
+              currentConvId = newConv.id;
+              setActiveConversationId(newConv.id);
+              setConversations((prev) => [newConv, ...(prev || [])]);
+            }
           }
-        }
 
-        if (currentConvId) {
-          await saveUserMessage(currentConvId, userId, cleanText);
-          await updateConversationTime(currentConvId);
+          if (currentConvId) {
+            await saveUserMessage(currentConvId, userId, cleanText);
+            await updateConversationTime(currentConvId);
+          }
+          return currentConvId;
+        } catch (dbErr) {
+          console.warn("Penyimpanan pesan user ke Supabase dilewati:", dbErr?.message);
+          return activeConversationId;
         }
-      } catch (dbErr) {
-        console.error("Catatan: Penyimpanan pesan user ke Supabase gagal (tetap lanjut ke Gemini):", dbErr);
-      }
+      })();
     }
 
-    // ========================================================
-    // 3. PEMANGGILAN API GEMINI DENGAN KONTEKS RIWAYAT (MULTI-TURN)
-    // ========================================================
+    // Pemanggilan API Gemini dengan riwayat sesi aktif
     let aiResponseText = "";
     try {
-      // Kirim cleanText bersama currentChatHistory agar AI mengingat konteks percakapan sebelumnya
       const response = await askGeminiFST(cleanText, currentChatHistory);
       aiResponseText =
         typeof response === "object" && response !== null
@@ -402,6 +457,20 @@ export const ChatUI = ({
       };
 
       setMessages((prev) => [...(prev || []), botMsg]);
+
+      // Simpan balasan bot ke Supabase setelah percakapan siap
+      if (userId && saveConversationPromise) {
+        saveConversationPromise.then(async (convId) => {
+          if (convId) {
+            try {
+              await saveAssistantMessage(convId, userId, aiResponseText);
+              await updateConversationTime(convId);
+            } catch (saveErr) {
+              console.warn("Gagal menyimpan balasan bot ke Supabase:", saveErr?.message);
+            }
+          }
+        });
+      }
     } catch (geminiError) {
       console.error("Detail error asli saat memanggil Gemini API:", geminiError);
       const fallbackMsg = {
@@ -415,7 +484,7 @@ export const ChatUI = ({
       };
       setMessages((prev) => [...(prev || []), fallbackMsg]);
       setIsLoading(false);
-      return; // Hentikan alur jika pemanggilan AI gagal
+      return;
     } finally {
       setIsLoading(false);
     }
