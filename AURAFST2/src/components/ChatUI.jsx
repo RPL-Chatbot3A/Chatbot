@@ -9,7 +9,6 @@ import {
   Maximize2,
   Minimize2,
   PanelLeft,
-  PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
 
@@ -17,7 +16,7 @@ import {
  * Komponen Utama ChatUI untuk Chatbot AURA-FST (FR-001)
  * Didesain dengan UI minimalis ala Google Gemini AI.
  */
-export const ChatUI = ({ isSidebarOpen, onToggleSidebar, externalPrompt }) => {
+export const ChatUI = ({ isSidebarOpen, onOpenSidebar, externalPrompt }) => {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -173,36 +172,38 @@ export const ChatUI = ({ isSidebarOpen, onToggleSidebar, externalPrompt }) => {
   return (
     <div className="flex flex-col h-dvh w-full bg-linear-to-b from-slate-800 to-slate-900 text-slate-800 overflow-hidden font-sans">
       {/* Top Bar dengan Tombol Toggle Sidebar */}
-      <header className="px-4 py-3 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={onToggleSidebar}
-          aria-label={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
-          className="group relative p-2 text-slate-300 hover:text-white hover:bg-slate-700/70 rounded-full transition-colors cursor-pointer"
-        >
-          {/* Ikon normal saat tidak di-hover */}
-          <PanelLeft size={20} className="block group-hover:hidden" />
+      {!isSidebarOpen && (
+        <header className="shrink-0 px-4 pt-3 pb-1 flex items-center gap-2.5 z-20">
+          <button
+            type="button"
+            onClick={onOpenSidebar}
+            aria-label="Open sidebar"
+            className="group relative p-2 text-slate-300 hover:text-white hover:bg-slate-700/70 rounded-full transition-colors cursor-pointer"
+          >
+            <PanelLeft size={19} className="block group-hover:hidden" />
+            <PanelLeftOpen
+              size={19}
+              className="hidden group-hover:block text-slate-50"
+            />
 
-          {/* Ikon berubah otomatis saat di-hover sesuai status sidebar */}
-          {isSidebarOpen ? (
-            <PanelLeftClose size={20} className="hidden group-hover:block" />
-          ) : (
-            <PanelLeftOpen size={20} className="hidden group-hover:block " />
-          )}
+            <span className="pointer-events-none absolute top-full left-0 mt-1.5 px-2.5 py-1 rounded-lg bg-slate-950 text-zinc-100 text-[11px] font-medium whitespace-nowrap border border-slate-700/80 shadow-lg opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition-all duration-150 z-50">
+              Open sidebar
+            </span>
+          </button>
 
-          {/* Tooltip di bawah tombol/kursor */}
-          <span className="pointer-events-none absolute top-full left-0 mt-2 px-2.5 py-1 rounded-lg bg-slate-950 text-zinc-100 text-[11px] font-medium whitespace-nowrap border border-slate-700/80 shadow-lg opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition-all duration-150 z-50">
-            {isSidebarOpen ? "Close sidebar" : "Open sidebar"}
-          </span>
-        </button>
-
-        <span className="font-semibold text-base tracking-tight text-zinc-100">
-          AURA-FST
-        </span>
-      </header>
+          <div className="flex items-center gap-2 select-none">
+            <div className="w-6 h-6 rounded-full bg-linear-to-tr from-sky-500 to-indigo-500 flex items-center justify-center text-white shadow-sm">
+              <Sparkles size={13} />
+            </div>
+            <span className="font-semibold text-sm tracking-tight text-zinc-100">
+              AURA-FST
+            </span>
+          </div>
+        </header>
+      )}
 
       {/* Area Chat */}
-      <main className="flex-1 overflow-y-auto px-4 sm:px-6 py-6">
+      <main className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-6">
         <div className="max-w-3xl w-full mx-auto space-y-8">
           {messages.map((msg) => {
             if (!msg.text) return null;
@@ -246,7 +247,7 @@ export const ChatUI = ({ isSidebarOpen, onToggleSidebar, externalPrompt }) => {
       </main>
 
       {/* Area Input Kapsul */}
-      <footer className="w-full px-4 sm:px-6 pb-4 pt-2">
+      <footer className="shrink-0 w-full px-4 sm:px-6 pb-4 pt-2">
         <div className="max-w-3xl w-full mx-auto">
           {/* Banner Error UI */}
           {errorMessage && (
@@ -286,7 +287,7 @@ export const ChatUI = ({ isSidebarOpen, onToggleSidebar, externalPrompt }) => {
                   if (errorMessage) setErrorMessage("");
                 }}
                 onKeyDown={handleKeyDown}
-                placeholder="Tanyakan jadwal KRS, syarat sidang, rumus matematika, koding..."
+                placeholder="Tanya AURA"
                 disabled={isLoading}
                 className="flex-1 bg-transparent py-1.5 text-sm text-zinc-100 placeholder:text-slate-300 focus:outline-none resize-none overflow-y-auto leading-relaxed break-all disabled:opacity-60 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full"
               />
