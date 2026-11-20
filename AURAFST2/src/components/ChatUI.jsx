@@ -21,13 +21,11 @@ import {
   Maximize2,
   Minimize2,
   PanelLeft,
-  PanelLeftClose,
   PanelLeftOpen,
   GraduationCap,
   FileText,
   School,
   Code2,
-  Sparkles,
 } from "lucide-react";
 
 /**
@@ -66,10 +64,11 @@ const HERO_ACTION_CARDS = [
 
 /**
  * Komponen Utama ChatUI untuk Chatbot AURA-FST (FR-001)
- * Dilengkapi dengan Maskot Animasi Karakter tanpa latar belakang dan ekspresi interaktif.
+ * Dilengkapi dengan Maskot Animasi Karakter tanpa latar belakang, ekspresi interaktif, dan integrasi Supabase.
  */
 export const ChatUI = ({
   isSidebarOpen,
+  onOpenSidebar,
   onToggleSidebar,
   externalPrompt,
   onLogout,
@@ -391,6 +390,14 @@ export const ChatUI = ({
     }
   };
 
+  const handleOpenClick = () => {
+    if (onOpenSidebar) {
+      onOpenSidebar();
+    } else if (onToggleSidebar) {
+      onToggleSidebar();
+    }
+  };
+
   // Menentukan apakah saat ini sedang dalam mode awal/welcome (belum ada chat dari user)
   const isInitialWelcome =
     messages.length === 0 ||
@@ -400,30 +407,30 @@ export const ChatUI = ({
 
   return (
     <div className="flex flex-col h-dvh w-full bg-linear-to-b from-slate-800 to-slate-900 text-slate-800 overflow-hidden font-sans">
-      {/* Top Bar dengan Tombol Toggle Sidebar & Identitas Karakter */}
-      <header className="px-4 py-3 flex items-center justify-between border-b border-slate-700/50 bg-slate-900/60 backdrop-blur-md z-10">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={onToggleSidebar}
-            aria-label={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
-            className="group relative p-2 text-slate-300 hover:text-white hover:bg-slate-700/70 rounded-full transition-colors cursor-pointer"
-          >
-            <PanelLeft size={20} className="block group-hover:hidden" />
-            {isSidebarOpen ? (
-              <PanelLeftClose size={20} className="hidden group-hover:block" />
-            ) : (
-              <PanelLeftOpen size={20} className="hidden group-hover:block" />
-            )}
-            <span className="pointer-events-none absolute top-full left-0 mt-2 px-2.5 py-1 rounded-lg bg-slate-950 text-zinc-100 text-[11px] font-medium whitespace-nowrap border border-slate-700/80 shadow-lg opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition-all duration-150 z-50">
-              {isSidebarOpen ? "Close sidebar" : "Open sidebar"}
-            </span>
-          </button>
+      {/* Top Bar dengan Tombol Buka Sidebar & Identitas Karakter */}
+      {!isSidebarOpen && (
+        <header className="shrink-0 px-4 pt-3 pb-1 flex items-center justify-between z-20">
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={handleOpenClick}
+              aria-label="Open sidebar"
+              className="group relative p-2 text-slate-300 hover:text-white hover:bg-slate-700/70 rounded-full transition-colors cursor-pointer"
+            >
+              <PanelLeft size={19} className="block group-hover:hidden" />
+              <PanelLeftOpen
+                size={19}
+                className="hidden group-hover:block text-slate-50"
+              />
 
-          {/* Maskot Avatar Mini di Header */}
-          <div className="flex items-center gap-2">
-            <MascotCharacter size="xs" isSpeaking={isLoading} />
-            <div>
+              <span className="pointer-events-none absolute top-full left-0 mt-1.5 px-2.5 py-1 rounded-lg bg-slate-950 text-zinc-100 text-[11px] font-medium whitespace-nowrap border border-slate-700/80 shadow-lg opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition-all duration-150 z-50">
+                Open sidebar
+              </span>
+            </button>
+
+            {/* Maskot Avatar Mini di Header */}
+            <div className="flex items-center gap-2 select-none">
+              <MascotCharacter size="xs" isSpeaking={isLoading} />
               <div className="flex items-center gap-1.5">
                 <span className="font-semibold text-sm sm:text-base tracking-tight text-zinc-100">
                   AURA-FST
@@ -435,15 +442,15 @@ export const ChatUI = ({
               </div>
             </div>
           </div>
-        </div>
 
-        <span className="text-xs text-slate-400 hidden sm:inline">
-          Academic Chatbot FST
-        </span>
-      </header>
+          <span className="text-xs text-slate-400 hidden sm:inline">
+            Academic Chatbot FST
+          </span>
+        </header>
+      )}
 
       {/* Area Konten Utama */}
-      <main className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 flex flex-col justify-between">
+      <main className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-6 flex flex-col justify-between">
         {isInitialWelcome ? (
           /* TAMPILAN HERO: KARAKTER MURNI MELAYANG DI TENGAH (Tanpa Kotak Latar) */
           <div className="my-auto flex flex-col items-center justify-center text-center max-w-2xl mx-auto w-full py-2">
@@ -601,7 +608,7 @@ export const ChatUI = ({
                   if (errorMessage) setErrorMessage("");
                 }}
                 onKeyDown={handleKeyDown}
-                placeholder="Tanyakan jadwal KRS, syarat sidang, rumus matematika, koding..."
+                placeholder="Tanya AURA..."
                 disabled={isLoading}
                 className="flex-1 bg-transparent py-1.5 text-sm text-zinc-100 placeholder:text-slate-300 focus:outline-none resize-none overflow-y-auto leading-relaxed break-all disabled:opacity-60 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full"
               />

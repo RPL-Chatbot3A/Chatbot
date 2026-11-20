@@ -52,10 +52,16 @@ function App() {
     setSidebarPrompt(null);
     chatHistory.onNewChat?.();
     setChatSessionId((prev) => prev + 1);
+    if (window.innerWidth < 640) {
+      setIsSidebarOpen(false);
+    }
   };
 
   const handleSelectPrompt = (promptText) => {
     setSidebarPrompt({ text: promptText, id: Date.now() });
+    if (window.innerWidth < 640) {
+      setIsSidebarOpen(false);
+    }
   };
 
   if (loading) {
@@ -69,21 +75,22 @@ function App() {
     );
   }
 
-  // if (!session) {
-  //   return <Auth />;
-  // }
+  if (!session) {
+    return <Auth />;
+  }
 
   return (
     <div className="h-dvh w-full bg-slate-900 flex flex-row overflow-hidden font-sans">
-      {/* Sidemenu dengan transisi basis-0 ke basis-2/12 */}
+      {/* Sidemenu Responsif */}
       <aside
         className={`h-full bg-slate-900 overflow-hidden shrink-0 transition-[flex-basis,opacity,border-color] duration-300 ease-in-out ${
           isSidebarOpen
-            ? "basis-64 md:basis-2/12 opacity-100 border-r border-slate-800"
-            : "basis-0 opacity-0 border-r-0 border-transparent"
+            ? "lg:basis-3/12 md:basis-4/12 sm:basis-5/12 xs:basis-full opacity-100 border-r border-slate-800"
+            : "basis-0 opacity-0 border-r-0 border-transparent pointer-events-none"
         }`}
       >
         <Sidemenu
+          onCloseSidebar={() => setIsSidebarOpen(false)}
           onNewChat={handleNewChat}
           onSelectPrompt={handleSelectPrompt}
           chatHistory={chatHistory}
@@ -91,15 +98,18 @@ function App() {
         />
       </aside>
 
-      {/* Area ChatUI */}
+      {/* Area ChatUI Responsif */}
       <div
-        className={`flex-1 min-w-0 h-full transition-[flex-basis] duration-300 ease-in-out ${
-          isSidebarOpen ? "basis-10/12" : "basis-full"
+        className={`min-w-0 h-full overflow-hidden transition-[flex-basis,opacity] duration-300 ease-in-out ${
+          isSidebarOpen
+            ? "lg:basis-9/12 md:basis-8/12 sm:basis-7/12 xs:basis-0 opacity-0 pointer-events-none sm:opacity-100 sm:pointer-events-auto"
+            : "basis-full opacity-100"
         }`}
       >
         <ChatUI
           key={chatSessionId}
           isSidebarOpen={isSidebarOpen}
+          onOpenSidebar={() => setIsSidebarOpen(true)}
           onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
           externalPrompt={sidebarPrompt}
           onLogout={handleLogout}
