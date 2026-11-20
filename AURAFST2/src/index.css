@@ -74,6 +74,24 @@
 }
 
 /* ============================================================
+   ANIMASI TRANSISI CHAT (Fade-in & Slide-up Lembut)
+   ============================================================ */
+@keyframes chatFadeSlideUp {
+  0% {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-chat-enter {
+  animation: chatFadeSlideUp 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ============================================================
    ANIMASI KARAKTER MASKOT & SUARA
    ============================================================ */
 @keyframes floatMascot {
@@ -125,27 +143,4 @@
 }
 .animate-voice-4 {
   animation: voiceBar 0.6s ease-in-out infinite 0.45s;
-}
-
-/* ============================================================
-   BLENDING & VIGNETTE VIDEO MASKOT
-   ============================================================ */
-/* Radial mask vignette halus pada tepian video agar menyatu mulus */
-.mascot-vignette {
-  mask-image: radial-gradient(circle at center, rgba(0, 0, 0, 1) 60%, rgba(0, 0, 0, 0.85) 75%, transparent 95%);
-  -webkit-mask-image: radial-gradient(circle at center, rgba(0, 0, 0, 1) 60%, rgba(0, 0, 0, 0.85) 75%, transparent 95%);
-}
-
-/* Dark mode blending */
-.dark .mascot-blend,
-.mascot-blend-dark {
-  mix-blend-mode: screen;
-  filter: drop-shadow(0 12px 28px rgba(56, 189, 248, 0.28));
-}
-
-/* Light mode blending */
-.light .mascot-blend,
-.mascot-blend-light {
-  mix-blend-mode: normal;
-  filter: drop-shadow(0 10px 22px rgba(14, 165, 233, 0.22));
 }

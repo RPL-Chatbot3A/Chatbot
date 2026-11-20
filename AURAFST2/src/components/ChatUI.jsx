@@ -69,8 +69,8 @@ const HERO_ACTION_CARDS = [
 
 /**
  * Komponen Utama ChatUI untuk Chatbot AURA-FST (FR-001)
- * Dilengkapi dengan Optimistic UI Update, Maskot Animasi SVG Murni,
- * Pemisahan Try-Catch Gemini & Supabase, dan Desain Responsif Mobile.
+ * Dilengkapi dengan Transisi Animasi Halus (Hero ke Mode Chat), Bubble Chat Instan,
+ * FormattedMessage Dinamis (Light/Dark), dan Integrasi Gemini / Supabase yang Tangguh.
  */
 export const ChatUI = ({
   theme = "dark",
@@ -84,6 +84,7 @@ export const ChatUI = ({
 }) => {
   const isDark = theme === "dark";
 
+  // Inisialisasi awal dengan array kosong agar tampilan Hero tampil bersih secara default
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -144,27 +145,15 @@ export const ChatUI = ({
     };
   }, []);
 
-  // Inisialisasi Welcome Message saat pertama kali dibuka (FR-001)
-  useEffect(() => {
-    const welcomeMsg = {
-      id: "welcome-aura-fst",
-      sender: "bot",
-      text: "Halo! Selamat datang di **AURA-FST** 👋\nSaya siap membantu memberikan informasi resmi akademik FST seputar KRS, Sidang TA, PMB, maupun materi sains & perkuliahan. Silakan klik menu cepat di bawah atau ketik pertanyaan Anda.",
-      timestamp: new Date().toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    };
-    setMessages([welcomeMsg]);
-  }, []);
-
   // Auto-scroll halus ke pesan terbaru setiap kali pesan dikirim/diterima
   const scrollToBottom = (behavior = "smooth") => {
     messagesEndRef.current?.scrollIntoView({ behavior });
   };
 
   useEffect(() => {
-    scrollToBottom("smooth");
+    if ((messages || []).length > 0) {
+      scrollToBottom("smooth");
+    }
   }, [messages, isLoading]);
 
   // Listener Scroll Container untuk menampilkan tombol "Scroll ke Bawah"
@@ -286,22 +275,12 @@ export const ChatUI = ({
     }
   };
 
-  // Memulai chat baru
+  // Memulai chat baru -> kembali ke tampilan awal (Hero Screen)
   const handleNewChat = () => {
     setActiveConversationId(null);
     setInputText("");
     setErrorMessage("");
-    setMessages([
-      {
-        id: "welcome-aura-fst-new",
-        sender: "bot",
-        text: "Halo! Selamat datang di **AURA-FST** 👋\nSilakan pilih topik bantuan cepat di bawah atau tanyakan seputar KRS, TA, PMB, maupun rumus sains.",
-        timestamp: new Date().toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      },
-    ]);
+    setMessages([]);
   };
 
   // Mengirim data riwayat ke parent (App.jsx) untuk ditampilkan di Sidemenu
@@ -317,7 +296,7 @@ export const ChatUI = ({
     }
   }, [conversations, isHistoryLoading, activeConversationId]);
 
-  // Handler pengiriman pesan utama dengan Optimistic UI Update & Pemisahan Try-Catch
+  // Handler pengiriman pesan utama: pertanyaan pengguna langsung jadi bubble chat pertama
   const handleSendMessage = async (textToSend) => {
     const rawText = textToSend || inputText;
     if (!rawText || !String(rawText).trim() || isLoading) return;
@@ -346,7 +325,7 @@ export const ChatUI = ({
       minute: "2-digit",
     });
 
-    // 1. OPTIMISTIC UI UPDATE: Tampilkan bubble chat pengguna secara instan di layar
+    // 1. OPTIMISTIC UI UPDATE: Pertanyaan langsung tampil sebagai bubble chat pertama
     const userMsg = {
       id: `user-${Date.now()}`,
       sender: "user",
@@ -455,9 +434,8 @@ export const ChatUI = ({
     }
   };
 
-  // Pengecekan aman untuk tampilan welcome
-  const isInitialWelcome =
-    (messages || []).length <= 1 && (messages || [])[0]?.sender === "bot";
+  // Tampilan Hero aktif jika belum ada pesan yang dikirim
+  const isInitialWelcome = (messages || []).length === 0;
 
   return (
     <div
@@ -543,7 +521,7 @@ export const ChatUI = ({
             </button>
           )}
 
-          {/* Sembunyikan teks di layar mobile/kecil (< 640px / 768px) agar header tidak sempit */}
+          {/* Sembunyikan teks di layar mobile/kecil (< 640px) agar header tidak sempit */}
           <span
             className={`text-xs hidden sm:inline ${
               isDark ? "text-slate-400" : "text-slate-500"
@@ -562,7 +540,7 @@ export const ChatUI = ({
       >
         {isInitialWelcome ? (
           /* TAMPILAN HERO: KARAKTER MURNI MELAYANG DI TENGAH DENGAN SPACING LEGA */
-          <div className="my-auto flex flex-col items-center justify-center text-center max-w-2xl mx-auto w-full pt-2 sm:pt-4 pb-6">
+          <div className="my-auto flex flex-col items-center justify-center text-center max-w-2xl mx-auto w-full pt-2 sm:pt-4 pb-6 transition-all duration-300">
             {/* Karakter Maskot SVG Murni Tanpa Kotak Background */}
             <div className="mb-3 sm:mb-4">
               <MascotCharacter size="hero" theme={theme} />
@@ -632,8 +610,8 @@ export const ChatUI = ({
             </div>
           </div>
         ) : (
-          /* TAMPILAN PERCAKAPAN: CHAT MODE DENGAN BUBBLE INSTAN & KARAKTER BERKEDIP/BERBICARA */
-          <div className="max-w-3xl w-full mx-auto space-y-6 sm:space-y-7">
+          /* TAMPILAN PERCAKAPAN: MODE CHAT DENGAN ANIMASI TRANSISI HALUS (animate-chat-enter) */
+          <div className="max-w-3xl w-full mx-auto space-y-6 sm:space-y-7 animate-chat-enter">
             {(messages || []).map((msg, index) => {
               if (!msg || !msg.text) return null;
 
@@ -642,7 +620,7 @@ export const ChatUI = ({
               const isCurrentlySpeaking = isLatestBotMessage && isLoading;
 
               return msg.sender === "user" ? (
-                /* Gelembung Pesan User (Langsung muncul secara instan) */
+                /* Gelembung Pesan User (Langsung muncul secara instan di paling atas percakapan baru) */
                 <div key={msg.id} className="flex justify-end">
                   <div
                     className={`max-w-[85%] sm:max-w-[75%] rounded-3xl rounded-tr-sm px-4 sm:px-5 py-3 sm:py-3.5 text-sm sm:text-[15px] leading-relaxed shadow-sm ${
@@ -685,12 +663,8 @@ export const ChatUI = ({
                       </span>
                     </div>
 
-                    <div
-                      className={`break-words ${
-                        isDark ? "text-zinc-200" : "text-slate-800"
-                      }`}
-                    >
-                      <FormattedMessage content={msg.text} />
+                    <div className="break-words">
+                      <FormattedMessage content={msg.text} theme={theme} />
                     </div>
 
                     {/* Tombol Salin Jawaban AI */}
@@ -725,7 +699,7 @@ export const ChatUI = ({
               );
             })}
 
-            {/* Indikator Menjawab / Memproses Pesan */}
+            {/* Indikator AURA-FST Sedang Mengetik / Memproses Pesan */}
             {isLoading && (
               <div className="flex items-start gap-2.5 sm:gap-4">
                 <MascotCharacter

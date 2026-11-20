@@ -124,7 +124,7 @@ ${FAQ_KNOWLEDGE_BASE}
 };
 
 /**
- * Mengirim pesan ke Gemini API menggunakan model gemini-2.5-flash
+ * Mengirim pesan ke Gemini API menggunakan model Gemini Flash terbaru dan ringan
  * @param {string} userMessage - Pesan dari pengguna
  * @param {Function} [onChunk] - Callback realtime stream
  * @returns {Promise<string>}
@@ -154,8 +154,9 @@ export const askGeminiFST = async (userMessage, onChunk) => {
     throw keyErr;
   }
 
-  // 4. Konfigurasi model gemini-2.5-flash
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=${apiKey}`;
+  // 4. Model Gemini Flash Terbaru & Ringan (gemini-3.8-flash)
+  const primaryModel = 'gemini-3.8-flash';
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${primaryModel}:streamGenerateContent?alt=sse&key=${apiKey}`;
 
   // Pastikan struktur contents memiliki parts: [{ text: messageText }] yang valid
   const payload = {
