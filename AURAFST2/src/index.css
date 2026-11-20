@@ -5,3 +5,61 @@
 * {
   font-family: "Google Sans", sans-serif;
 }
+
+/* Animasi Melayang Halus untuk Karakter Maskot */
+@keyframes floatMascot {
+  0%, 100% {
+    transform: translateY(0px) scale(1);
+  }
+  50% {
+    transform: translateY(-10px) scale(1.02);
+  }
+}
+
+@keyframes shadowPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scale(0.85);
+    opacity: 0.15;
+  }
+}
+
+.animate-mascot-float {
+  animation: floatMascot 4s ease-in-out infinite;
+}
+
+.animate-shadow-pulse {
+  animation: shadowPulse 4s ease-in-out infinite;
+}
+
+/* Animasi Gelombang Suara (Voice Wave) saat Karakter Berbicara */
+@keyframes voiceBar {
+  0%, 100% {
+    height: 4px;
+  }
+  50% {
+    height: 14px;
+  }
+}
+
+.animate-voice-1 {
+  animation: voiceBar 0.6s ease-in-out infinite;
+}
+.animate-voice-2 {
+  animation: voiceBar 0.6s ease-in-out infinite 0.15s;
+}
+.animate-voice-3 {
+  animation: voiceBar 0.6s ease-in-out infinite 0.3s;
+}
+.animate-voice-4 {
+  animation: voiceBar 0.6s ease-in-out infinite 0.45s;
+}
+
+/* Menghilangkan Latar Gelap/Hitam pada Video Maskot sehingga hanya Objek Karakter yang Tampil */
+.mascot-blend {
+  mix-blend-mode: screen;
+  filter: drop-shadow(0 12px 24px rgba(56, 189, 248, 0.25));
+}

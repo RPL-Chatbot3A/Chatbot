@@ -1,7 +1,8 @@
 
 import React, { useState } from "react";
 import { supabase } from "../config/supabase";
-import { Sparkles, Mail, Lock, UserRound } from "lucide-react";
+import { Mail, Lock, UserRound } from "lucide-react";
+import MascotCharacter from "./MascotCharacter";
 
 function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -54,10 +55,8 @@ function Auth() {
       <div className="w-full max-w-md">
 
         {/* Identitas AURA FST */}
-        <div className="flex flex-col items-center mb-7">
-          <div className="w-14 h-14 rounded-2xl bg-linear-to-tr from-sky-500 to-indigo-500 flex items-center justify-center shadow-lg mb-4">
-            <Sparkles size={28} className="text-white" />
-          </div>
+        <div className="flex flex-col items-center mb-6">
+          <MascotCharacter size="hero" className="scale-75 -my-6" />
 
           <h1 className="text-2xl font-bold tracking-tight">
             AURA-FST

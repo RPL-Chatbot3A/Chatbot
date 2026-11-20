@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { validateAndSanitizeTopic } from "../utils/chatValidator";
 import { askGeminiFST } from "../services/geminiService";
@@ -11,19 +10,71 @@ import {
   saveUserMessage,
   saveAssistantMessage,
   updateConversationTime,
-  updateConversationTitle,
   deleteConversation,
 } from "../services/chatHistory";
 
 import QuickReplyButtons from "./QuickReplyButtons";
 import FormattedMessage from "./FormattedMessage";
-import { Send, Sparkles, Maximize2, Minimize2, PanelLeft } from "lucide-react";
+import MascotCharacter from "./MascotCharacter";
+import {
+  Send,
+  Maximize2,
+  Minimize2,
+  PanelLeft,
+  PanelLeftClose,
+  PanelLeftOpen,
+  GraduationCap,
+  FileText,
+  School,
+  Code2,
+  Sparkles,
+} from "lucide-react";
+
+/**
+ * 4 Kartu Opsi Cepat untuk Tampilan Awal Hero (Sesuai Desain Referensi)
+ */
+const HERO_ACTION_CARDS = [
+  {
+    id: "krs",
+    title: "Informasi KRS & SKS",
+    subtitle: "Beban SKS & alur pengisian portal",
+    icon: <GraduationCap size={20} className="text-sky-400" />,
+    query: "Bagaimana jadwal dan alur pengisian KRS di FST?",
+  },
+  {
+    id: "sidang",
+    title: "Syarat Sidang TA",
+    subtitle: "Pendaftaran skripsi & munaqasyah",
+    icon: <FileText size={20} className="text-emerald-400" />,
+    query: "Apa saja syarat dan ketentuan mendaftar Sidang Tugas Akhir (TA)?",
+  },
+  {
+    id: "pmb",
+    title: "Info PMB & Prodi",
+    subtitle: "Jalur masuk & kebijakan transfer",
+    icon: <School size={20} className="text-amber-400" />,
+    query: "Apa saja program studi dan jalur pendaftaran PMB di FST?",
+  },
+  {
+    id: "sains",
+    title: "Sains & Koding",
+    subtitle: "Tanya rumus matematika & materi kuliah",
+    icon: <Code2 size={20} className="text-purple-400" />,
+    query: "Bantu saya memahami materi kuliah sains dan teknologi di FST",
+  },
+];
 
 /**
  * Komponen Utama ChatUI untuk Chatbot AURA-FST (FR-001)
- * Didesain dengan antarmuka minimalis ala Google Gemini AI.
+ * Dilengkapi dengan Maskot Animasi Karakter tanpa latar belakang dan ekspresi interaktif.
  */
-export const ChatUI = ({ isSidebarOpen, onToggleSidebar, onLogout, onHistoryChange }) => {
+export const ChatUI = ({
+  isSidebarOpen,
+  onToggleSidebar,
+  externalPrompt,
+  onLogout,
+  onHistoryChange,
+}) => {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -31,53 +82,51 @@ export const ChatUI = ({ isSidebarOpen, onToggleSidebar, onLogout, onHistoryChan
   const [isExpanded, setIsExpanded] = useState(false);
   const [showExpandBtn, setShowExpandBtn] = useState(false);
   const [isMultiline, setIsMultiline] = useState(false);
-  // State untuk riwayat percakapan
-const [userId, setUserId] = useState(null);
-const [activeConversationId, setActiveConversationId] = useState(null);
-const [conversations, setConversations] = useState([]);
-const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+
+  // State untuk riwayat percakapan Supabase
+  const [userId, setUserId] = useState(null);
+  const [activeConversationId, setActiveConversationId] = useState(null);
+  const [conversations, setConversations] = useState([]);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
 
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
 
-  // Mengambil sesi login dan memuat riwayat percakapan
-useEffect(() => {
-  let cancelled = false;
+  // Mengambil sesi login dan memuat riwayat percakapan dari Supabase
+  useEffect(() => {
+    let cancelled = false;
 
-  const initializeChatHistory = async () => {
-    try {
-      setIsHistoryLoading(true);
+    const initializeChatHistory = async () => {
+      try {
+        setIsHistoryLoading(true);
 
-      const session = await getOrCreateUserSession();
-      const currentUserId = session.user.id;
+        const session = await getOrCreateUserSession();
+        const currentUserId = session?.user?.id;
 
-      if (cancelled) return;
+        if (cancelled) return;
 
-      setUserId(currentUserId);
-
-      const history = await getConversations(currentUserId);
-
-      if (!cancelled) {
-        setConversations(history || []);
+        if (currentUserId) {
+          setUserId(currentUserId);
+          const history = await getConversations(currentUserId);
+          if (!cancelled) {
+            setConversations(history || []);
+          }
+        }
+      } catch (error) {
+        console.warn("Sesi belum aktif / mode guest:", error?.message);
+      } finally {
+        if (!cancelled) {
+          setIsHistoryLoading(false);
+        }
       }
-    } catch (error) {
-      console.error("Gagal memuat riwayat chat:", error);
-      if (!cancelled) {
-        setErrorMessage(error.message);
-      }
-    } finally {
-      if (!cancelled) {
-        setIsHistoryLoading(false);
-      }
-    }
-  };
+    };
 
-  initializeChatHistory();
+    initializeChatHistory();
 
-  return () => {
-    cancelled = true;
-  };
-}, []);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Inisialisasi Welcome Message saat pertama kali dibuka (FR-001)
   useEffect(() => {
@@ -114,10 +163,8 @@ useEffect(() => {
     el.style.height = "auto";
     const scrollHeight = el.scrollHeight;
 
-    // Jika lebih dari 1 baris (> 48px), ubah bentuk rounded dari kapsul ke kotak membulat
     setIsMultiline(scrollHeight > 48);
 
-    // Munculkan tombol Maximize jika teks mencapai ~3 baris (> 90px)
     if (scrollHeight > 90) {
       setShowExpandBtn(true);
     } else if (!isExpanded) {
@@ -131,6 +178,13 @@ useEffect(() => {
     }
   }, [inputText, isExpanded]);
 
+  // Menangani input prompt yang dikirim dari sidebar
+  useEffect(() => {
+    if (externalPrompt?.text && !isLoading) {
+      handleSendMessage(externalPrompt.text);
+    }
+  }, [externalPrompt]);
+
   /**
    * Menangani pengiriman pesan baik dari tombol cepat maupun form input
    * @param {string} rawTopic
@@ -138,7 +192,6 @@ useEffect(() => {
   const handleSendMessage = async (rawTopic) => {
     setErrorMessage("");
 
-    // 1. Validasi dan Sanitasi Input (SRP)
     const {
       isValid,
       sanitizedTopic,
@@ -176,72 +229,82 @@ useEffect(() => {
     setIsLoading(true);
 
     try {
-// Membuat percakapan baru jika belum ada
-if (!userId) {
-  throw new Error("Sesi pengguna belum siap. Silakan coba lagi.");
-}
+      let currentUserId = userId;
+      if (!currentUserId) {
+        try {
+          const session = await getOrCreateUserSession();
+          currentUserId = session?.user?.id;
+          if (currentUserId) setUserId(currentUserId);
+        } catch {
+          // Guest mode
+        }
+      }
 
-let conversationId = activeConversationId;
+      let conversationId = activeConversationId;
+      if (currentUserId) {
+        if (!conversationId) {
+          try {
+            const newConversation = await createConversation(
+              currentUserId,
+              sanitizedTopic.slice(0, 50)
+            );
+            conversationId = newConversation.id;
+            setActiveConversationId(conversationId);
+            setConversations((prev) => [newConversation, ...prev]);
+          } catch (e) {
+            console.warn("Supabase conversation skip:", e);
+          }
+        }
 
-if (!conversationId) {
-  const newConversation = await createConversation(
-    userId,
-    sanitizedTopic.slice(0, 50)
-  );
+        if (conversationId) {
+          try {
+            await saveUserMessage(conversationId, currentUserId, sanitizedTopic);
+            await updateConversationTime(conversationId);
+          } catch (e) {
+            console.warn("Supabase save user message skip:", e);
+          }
+        }
+      }
 
-  conversationId = newConversation.id;
+      // Panggil Gemini dan streaming respons
+      const assistantResponse = await askGeminiFST(
+        sanitizedTopic,
+        (currentAccumulatedText) => {
+          setIsLoading(false);
+          setMessages((prevMessages) =>
+            prevMessages.map((msg) =>
+              msg.id === botMessageId
+                ? { ...msg, text: currentAccumulatedText }
+                : msg
+            )
+          );
+        }
+      );
 
-  setActiveConversationId(conversationId);
-
-  setConversations((prev) => [
-    newConversation,
-    ...prev,
-  ]);
-}
-
-// Menyimpan pesan pengguna
-await saveUserMessage(
-  conversationId,
-  userId,
-  sanitizedTopic
-);
-
-await updateConversationTime(conversationId);
-      // 2. Panggil Gemini dan tampung jawaban akhirnya
-const assistantResponse = await askGeminiFST(
-  sanitizedTopic,
-  (currentAccumulatedText) => {
-        setIsLoading(false);
-        setMessages((prevMessages) =>
-          prevMessages.map((msg) =>
-            msg.id === botMessageId
-              ? { ...msg, text: currentAccumulatedText }
-              : msg,
-          ),
-        );
-      })
-// Menyimpan jawaban AI ke Supabase
-await saveAssistantMessage(
-  conversationId,
-  userId,
-  assistantResponse
-);
-
-await updateConversationTime(conversationId);;
+      if (currentUserId && conversationId) {
+        try {
+          await saveAssistantMessage(
+            conversationId,
+            currentUserId,
+            assistantResponse
+          );
+          await updateConversationTime(conversationId);
+        } catch (e) {
+          console.warn("Supabase save assistant message skip:", e);
+        }
+      }
     } catch (err) {
       console.error("Terjadi kesalahan pada ChatUI:", err);
       setMessages((prev) => prev.filter((msg) => msg.id !== botMessageId));
       setErrorMessage(
         err.message ||
-          "Gagal memproses pesan. Periksa koneksi internet atau kunci API Anda.",
+          "Gagal memproses pesan. Periksa koneksi internet atau kunci API Anda."
       );
     } finally {
       setIsLoading(false);
     }
   };
 
-
-  // Membuka percakapan lama dari riwayat
   const handleOpenConversation = async (conversationId) => {
     try {
       setIsHistoryLoading(true);
@@ -259,9 +322,6 @@ await updateConversationTime(conversationId);;
         }),
       }));
 
-
- 
-
       setMessages(formattedMessages);
       setActiveConversationId(conversationId);
     } catch (error) {
@@ -272,26 +332,23 @@ await updateConversationTime(conversationId);;
     }
   };
 
-  // Membuat percakapan baru
-const handleNewChat = () => {
-  setActiveConversationId(null);
-  setMessages([
-    {
-      id: "welcome-" + Date.now(),
-      sender: "bot",
-      text: "Halo! Selamat datang di **AURA-FST** 👋\nSaya siap membantu memberikan informasi resmi akademik FST seputar KRS, Sidang TA, PMB, maupun materi sains & perkuliahan. Silakan ketik pertanyaan Anda.",
-      timestamp: new Date().toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    },
-  ]);
-  setInputText("");
-  setErrorMessage("");
-};
+  const handleNewChat = () => {
+    setActiveConversationId(null);
+    setMessages([
+      {
+        id: "welcome-" + Date.now(),
+        sender: "bot",
+        text: "Halo! Selamat datang di **AURA-FST** 👋\nSaya siap membantu memberikan informasi resmi akademik FST seputar KRS, Sidang TA, PMB, maupun materi sains & perkuliahan. Silakan ketik pertanyaan Anda.",
+        timestamp: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      },
+    ]);
+    setInputText("");
+    setErrorMessage("");
+  };
 
-
-  // Menghapus percakapan dari riwayat
   const handleDeleteConversation = async (conversationId) => {
     try {
       await deleteConversation(conversationId);
@@ -302,7 +359,7 @@ const handleNewChat = () => {
 
       if (activeConversationId === conversationId) {
         setActiveConversationId(null);
-        setMessages([]);
+        handleNewChat();
       }
     } catch (error) {
       console.error("Gagal menghapus percakapan:", error);
@@ -310,25 +367,21 @@ const handleNewChat = () => {
     }
   };
 
-
-  // Mengirim data riwayat ke App.jsx
   useEffect(() => {
     onHistoryChange?.({
       conversations,
       isLoading: isHistoryLoading,
       onOpen: handleOpenConversation,
       onDelete: handleDeleteConversation,
-       onNewChat: handleNewChat,
+      onNewChat: handleNewChat,
     });
   }, [conversations, isHistoryLoading]);
-
 
   const handleSubmit = (e) => {
     e.preventDefault();
     handleSendMessage(inputText);
   };
 
-  // Kirim dengan Enter, baris baru dengan Shift + Enter
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -338,70 +391,171 @@ const handleNewChat = () => {
     }
   };
 
+  // Menentukan apakah saat ini sedang dalam mode awal/welcome (belum ada chat dari user)
+  const isInitialWelcome =
+    messages.length === 0 ||
+    (messages.length === 1 &&
+      messages[0].sender === "bot" &&
+      messages[0].id?.startsWith("welcome"));
+
   return (
-    <>
-      <div className="flex flex-col h-dvh w-full bg-linear-to-b from-slate-800 to-slate-900 text-slate-800 overflow-hidden font-sans">
-      {/* Top Bar dengan Tombol Toggle Sidebar */}
-      <header className="px-4 py-3 flex items-center gap-3">
-  <button
-    type="button"
-    onClick={onToggleSidebar}
-    title={isSidebarOpen ? "Tutup sidebar" : "Buka sidebar"}
-    aria-label={isSidebarOpen ? "Tutup sidebar" : "Buka sidebar"}
-    className="p-2 text-slate-300 hover:text-white hover:bg-slate-700/70 rounded-full transition-colors cursor-pointer"
-  >
-    <PanelLeft size={20} />
-  </button>
-
-  <span className="font-semibold text-base tracking-tight text-zinc-100">
-    AURA-FST
-  </span>
-
-  <div className="flex-1" />
-</header>
-
-      {/* Area Chat */}
-      <main className="flex-1 overflow-y-auto px-4 sm:px-6 py-6">
-        <div className="max-w-3xl w-full mx-auto space-y-8">
-          {messages.map((msg) => {
-            if (!msg.text) return null;
-
-            return msg.sender === "user" ? (
-              /* Gelembung Pesan User */
-              <div key={msg.id} className="flex justify-end">
-                <div className="max-w-[85%] sm:max-w-[75%] bg-linear-to-t from-slate-600 to-slate-700 text-zinc-100 rounded-3xl rounded-tr-sm px-5 py-3.5 text-[15px] leading-relaxed">
-                  <p className="whitespace-pre-wrap">{msg.text}</p>
-                </div>
-              </div>
+    <div className="flex flex-col h-dvh w-full bg-linear-to-b from-slate-800 to-slate-900 text-slate-800 overflow-hidden font-sans">
+      {/* Top Bar dengan Tombol Toggle Sidebar & Identitas Karakter */}
+      <header className="px-4 py-3 flex items-center justify-between border-b border-slate-700/50 bg-slate-900/60 backdrop-blur-md z-10">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onToggleSidebar}
+            aria-label={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
+            className="group relative p-2 text-slate-300 hover:text-white hover:bg-slate-700/70 rounded-full transition-colors cursor-pointer"
+          >
+            <PanelLeft size={20} className="block group-hover:hidden" />
+            {isSidebarOpen ? (
+              <PanelLeftClose size={20} className="hidden group-hover:block" />
             ) : (
-              /* Balasan Bot */
-              <div key={msg.id} className="flex items-start gap-4">
-                <div className="w-8 h-8 rounded-full bg-linear-to-tr from-sky-500 to-indigo-500 flex items-center justify-center text-white shrink-0 mt-0.5 shadow-sm">
-                  <Sparkles size={16} />
-                </div>
-                <div className="flex-1 min-w-0 text-[15px] leading-relaxed text-zinc-200 pt-0.5">
-                  <FormattedMessage content={msg.text} />
-                </div>
-              </div>
-            );
-          })}
+              <PanelLeftOpen size={20} className="hidden group-hover:block" />
+            )}
+            <span className="pointer-events-none absolute top-full left-0 mt-2 px-2.5 py-1 rounded-lg bg-slate-950 text-zinc-100 text-[11px] font-medium whitespace-nowrap border border-slate-700/80 shadow-lg opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition-all duration-150 z-50">
+              {isSidebarOpen ? "Close sidebar" : "Open sidebar"}
+            </span>
+          </button>
 
-          {/* Loading Indicator */}
-          {isLoading && (
-            <div className="flex items-center gap-4">
-              <div className="w-8 h-8 rounded-full bg-linear-to-tr from-sky-500 to-indigo-500 flex items-center justify-center text-white shrink-0 animate-pulse">
-                <Sparkles size={16} />
-              </div>
-              <div className="flex items-center gap-1.5 text-slate-400 text-sm">
-                <span className="w-2 h-2 rounded-full bg-sky-400 animate-bounce" />
-                <span className="w-2 h-2 rounded-full bg-sky-400 animate-bounce [animation-delay:150ms]" />
-                <span className="w-2 h-2 rounded-full bg-sky-400 animate-bounce [animation-delay:300ms]" />
+          {/* Maskot Avatar Mini di Header */}
+          <div className="flex items-center gap-2">
+            <MascotCharacter size="xs" isSpeaking={isLoading} />
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-semibold text-sm sm:text-base tracking-tight text-zinc-100">
+                  AURA-FST
+                </span>
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  {isLoading ? "Berbicara..." : "Online"}
+                </span>
               </div>
             </div>
-          )}
-
-          <div ref={messagesEndRef} />
+          </div>
         </div>
+
+        <span className="text-xs text-slate-400 hidden sm:inline">
+          Academic Chatbot FST
+        </span>
+      </header>
+
+      {/* Area Konten Utama */}
+      <main className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 flex flex-col justify-between">
+        {isInitialWelcome ? (
+          /* TAMPILAN HERO: KARAKTER MURNI MELAYANG DI TENGAH (Tanpa Kotak Latar) */
+          <div className="my-auto flex flex-col items-center justify-center text-center max-w-2xl mx-auto w-full py-2">
+            {/* Karakter Maskot Melayang Murni Tanpa Frame Kotak */}
+            <div className="mb-4">
+              <MascotCharacter size="hero" />
+            </div>
+
+            {/* Sapaan Karakter */}
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white mb-2">
+              Halo! Aku AURA-FST
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-300 max-w-md leading-relaxed mb-6">
+              Siap nemenin kamu ngobrol, eksplorasi materi sains &amp; teknologi,
+              serta bantu kebutuhan informasi akademik FST dengan cepat.
+            </p>
+
+            {/* 4 Kartu Opsi Cepat / Quick Cards (Sesuai Mockup) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-lg text-left">
+              {HERO_ACTION_CARDS.map((card) => (
+                <button
+                  key={card.id}
+                  type="button"
+                  onClick={() => handleSendMessage(card.query)}
+                  className="p-3.5 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/80 hover:border-sky-500/50 text-left transition-all duration-200 group cursor-pointer shadow-sm hover:shadow-md hover:scale-[1.02]"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-xl bg-slate-700/60 group-hover:bg-slate-650 shrink-0">
+                      {card.icon}
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-xs sm:text-sm font-semibold text-zinc-100 group-hover:text-sky-300 transition-colors">
+                        {card.title}
+                      </h3>
+                      <p className="text-[11px] text-slate-400 mt-0.5 truncate">
+                        {card.subtitle}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          /* TAMPILAN PERCAKAPAN: CHAT MODE DENGAN KARAKTER BERBALAS & EKSPRESI MULUT */
+          <div className="max-w-3xl w-full mx-auto space-y-7">
+            {messages.map((msg, index) => {
+              if (!msg.text) return null;
+
+              const isLatestBotMessage =
+                msg.sender === "bot" && index === messages.length - 1;
+              const isCurrentlySpeaking = isLatestBotMessage && isLoading;
+
+              return msg.sender === "user" ? (
+                /* Gelembung Pesan User */
+                <div key={msg.id} className="flex justify-end">
+                  <div className="max-w-[85%] sm:max-w-[75%] bg-linear-to-b from-slate-600 to-slate-700 text-zinc-100 rounded-3xl rounded-tr-sm px-5 py-3.5 text-[15px] leading-relaxed shadow-sm">
+                    <p className="whitespace-pre-wrap">{msg.text}</p>
+                  </div>
+                </div>
+              ) : (
+                /* Balasan Karakter Maskot Bot */
+                <div key={msg.id} className="flex items-start gap-3 sm:gap-4">
+                  {/* Maskot Avatar dengan Animasi Ekspresi Mulut saat Berbicara */}
+                  <MascotCharacter
+                    size="md"
+                    isSpeaking={isCurrentlySpeaking}
+                    showWave={isCurrentlySpeaking}
+                  />
+
+                  {/* Isi Pesan */}
+                  <div className="flex-1 min-w-0 text-[15px] leading-relaxed text-zinc-200 pt-0.5">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-semibold text-sky-400">
+                        AURA-FST
+                      </span>
+                      {isCurrentlySpeaking && (
+                        <span className="text-[11px] text-sky-400 font-medium animate-pulse">
+                          • sedang berbicara...
+                        </span>
+                      )}
+                      <span className="text-[10px] text-slate-400">
+                        {msg.timestamp}
+                      </span>
+                    </div>
+                    <FormattedMessage content={msg.text} />
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Indikator Menjawab / Memproses Pesan */}
+            {isLoading && (
+              <div className="flex items-start gap-3 sm:gap-4">
+                <MascotCharacter size="md" isSpeaking={true} showWave={true} />
+                <div className="flex flex-col gap-1.5 pt-1">
+                  <div className="flex items-center gap-2 text-sky-400 text-xs font-medium">
+                    <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping" />
+                    <span>AURA-FST sedang membalas &amp; berbicara...</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-slate-400 text-sm">
+                    <span className="w-2 h-2 rounded-full bg-sky-400 animate-bounce" />
+                    <span className="w-2 h-2 rounded-full bg-sky-400 animate-bounce [animation-delay:150ms]" />
+                    <span className="w-2 h-2 rounded-full bg-sky-400 animate-bounce [animation-delay:300ms]" />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
+          </div>
+        )}
       </main>
 
       {/* Area Input Kapsul */}
@@ -413,20 +567,22 @@ const handleNewChat = () => {
               <span>⚠️ {errorMessage}</span>
               <button
                 onClick={() => setErrorMessage("")}
-                className="text-rose-500 font-bold hover:text-rose-800 text-sm ml-2"
+                className="text-rose-500 font-bold hover:text-rose-800 text-sm ml-2 cursor-pointer"
               >
                 &times;
               </button>
             </div>
           )}
 
-          {/* Tombol Opsi Cepat (FR-001) */}
-          <div className="mb-1 pl-2">
-            <QuickReplyButtons
-              onSelectOption={handleSendMessage}
-              isDisabled={isLoading}
-            />
-          </div>
+          {/* Tombol Opsi Cepat (Hanya muncul jika sudah dalam mode chat) */}
+          {!isInitialWelcome && (
+            <div className="mb-1 pl-1">
+              <QuickReplyButtons
+                onSelectOption={handleSendMessage}
+                isDisabled={isLoading}
+              />
+            </div>
+          )}
 
           <form
             onSubmit={handleSubmit}
@@ -492,8 +648,7 @@ const handleNewChat = () => {
           </p>
         </div>
       </footer>
-          </div>
-    </>
+    </div>
   );
 };
 
