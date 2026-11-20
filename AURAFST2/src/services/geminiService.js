@@ -54,6 +54,14 @@ const INSTANT_MAP = [
 • **Kontak WhatsApp Resmi:** **0812-3456-7890**
 • **Jam Layanan:** Senin – Jumat, pukul **08.00 – 16.00 WIB** (Sabtu, Minggu & Hari Libur Nasional Tutup).`,
   },
+  {
+    keywords: ['sains', 'koding', 'sains & koding', 'materi kuliah', 'pemrograman', 'rumus matematika', 'bantu saya memahami materi'],
+    response: `🔬 **Bantuan Materi Sains, Teknologi & Koding FST:**
+
+• **Bidang Keilmuan:** Matematika & Kalkulus, Statistika, Fisika Dasar, Kimia, Biologi, Pemrograman (Python, JavaScript, Java, C++), Basis Data (SQL), AI/Machine Learning, dan Jaringan Komputer.
+• **Dukungan Formula LaTeX:** AURA-FST dapat merender rumus matematika rapi dengan format simbolik visual KaTeX ($...$).
+• **Cara Memulai:** Silakan ketikkan topik, soal, rumus, atau potongan kode yang ingin kamu pelajari (misal: *"Jelaskan konsep Polymorphism dalam OOP"* atau *"Tuliskan rumus turunan fungsi kuadrat"*).`,
+  },
 ];
 
 /**
@@ -71,7 +79,7 @@ const FORBIDDEN_TOPICS = [
  */
 export const findInstantAnswer = (text) => {
   if (!text) return null;
-  const lower = text.toLowerCase().trim();
+  const lower = String(text).toLowerCase().trim();
 
   // Tolak topik yang benar-benar tidak pantas / tidak relevan
   if (FORBIDDEN_TOPICS.some((topic) => lower.includes(topic))) {
@@ -101,7 +109,8 @@ PERAN & BATASAN RUANG LINGKUP (GUARDRAILS):
 
 1. PRIORITAS UTAMA (PEDOMAN AKADEMIK RESMI):
    - Jika pengguna bertanya mengenai aturan akademik kampus (KRS, SKS, masa studi, cuti, DO, predikat kelulusan/Cum Laude, syarat sidang TA, nilai PPB, alur PMB, layanan TU), Anda WAJIB menjawab sesuai DOKUMEN PEDOMAN AKADEMIK RESMI di bawah (SK Rektor No. 1617 Tahun 2024).
-   - Jika pengguna bertanya mengenai siapa pembuat chatbotnya maka akan di jawab yaitu anak mahasiswa Teknik Informatika 25
+   - Jika pengguna bertanya mengenai siapa pembuat chatbotnya maka akan di jawab yaitu anak mahasiswa Teknik Informatika 25.
+
 2. PENGETAHUAN GLOBAL TERBATAS (KHUSUS SAINS & KULIAH):
    - Anda DIIZINKAN menjawab pertanyaan global TERBATAS HANYA pada lingkup:
      * Sains & Matematika (rumus, teori fisika, kimia, biologi, kalkulus, statistika).
@@ -123,39 +132,106 @@ ${FAQ_KNOWLEDGE_BASE}
 };
 
 /**
- * Mengirim pesan ke Gemini API dengan efisiensi tinggi
+ * Mengirim pesan ke Gemini API dengan riwayat multi-turn chat (conversationHistory)
  * @param {string} userMessage - Pesan dari pengguna
- * @param {Function} [onChunk] - Callback realtime stream
+ * @param {Array<{role: string, text: string}>|Function} [historyOrChunk] - Riwayat chat sesi aktif atau callback stream
+ * @param {Function} [maybeChunk] - Callback realtime stream
  * @returns {Promise<string>}
  */
-export const askGeminiFST = async (userMessage, onChunk) => {
-  // 1. Cek instan respons lokal (0ms latency untuk sapaan & quick buttons)
-  const instantAnswer = findInstantAnswer(userMessage);
+export const askGeminiFST = async (userMessage, historyOrChunk, maybeChunk) => {
+  // Parsing parameter fleksibel
+  const history = Array.isArray(historyOrChunk) ? historyOrChunk : [];
+  const onChunk = typeof historyOrChunk === 'function' ? historyOrChunk : maybeChunk;
+
+  // 1. Sanitasi teks input pengguna dan pastikan string terisi
+  const messageText = typeof userMessage === 'string'
+    ? userMessage.trim()
+    : String(userMessage || '').trim();
+
+  if (!messageText) {
+    throw new Error('Pesan pengguna kosong atau tidak valid.');
+  }
+
+  // 2. Cek respons instan lokal (0ms latency untuk sapaan, bantuan, & quick chat buttons)
+  const instantAnswer = findInstantAnswer(messageText);
   if (instantAnswer) {
     if (typeof onChunk === 'function') onChunk(instantAnswer, instantAnswer);
     return instantAnswer;
   }
 
-  // 2. Cek API Key
+  // 3. Cek API Key
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   if (!apiKey || apiKey.includes('MASUKKAN_GEMINI_API_KEY')) {
-    throw new Error('Kunci API Gemini (VITE_GEMINI_API_KEY) belum dikonfigurasi di file .env');
+    const keyErr = new Error('Kunci API Gemini (VITE_GEMINI_API_KEY) belum dikonfigurasi di file .env');
+    console.error('Kunci API Gemini belum tersedia:', keyErr);
+    throw keyErr;
   }
 
-  // 3. Konfigurasi model flash-lite
+  // 4. Model Gemini Flash Terbaru & Ringan (gemini-3.8-flash)
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:streamGenerateContent?alt=sse&key=${apiKey}`;
 
+  // 5. Susun contents dengan riwayat percakapan (Multi-turn Context)
+  const formattedContents = [];
+
+  if (Array.isArray(history) && history.length > 0) {
+    // Ambil maksimal 8-10 pesan terakhir agar tetap hemat token dan fokus
+    const recentHistory = history.slice(-10);
+
+    for (const item of recentHistory) {
+      const itemText = typeof item?.text === 'string'
+        ? item.text.trim()
+        : String(item?.text || '').trim();
+
+      if (!itemText) continue;
+
+      const itemRole = (item.role === 'model' || item.sender === 'bot') ? 'model' : 'user';
+
+      // Turn pertama di Gemini API harus selalu role 'user'
+      if (formattedContents.length === 0 && itemRole !== 'user') {
+        continue;
+      }
+
+      // Hindari duplikasi role yang sama berurutan
+      const lastItem = formattedContents[formattedContents.length - 1];
+      if (lastItem && lastItem.role === itemRole) {
+        lastItem.parts[0].text += `\n${itemText}`;
+      } else {
+        formattedContents.push({
+          role: itemRole,
+          parts: [{ text: itemText }],
+        });
+      }
+    }
+  }
+
+  // Pastikan pesan terakhir di riwayat tidak 'user' berurutan dengan pertanyaan saat ini
+  const lastHistoryItem = formattedContents[formattedContents.length - 1];
+  if (lastHistoryItem && lastHistoryItem.role === 'user') {
+    formattedContents.push({
+      role: 'model',
+      parts: [{ text: 'Baik, silakan lanjutkan pertanyaan Anda.' }],
+    });
+  }
+
+  // Tambahkan pertanyaan user saat ini di bagian akhir contents
+  formattedContents.push({
+    role: 'user',
+    parts: [{ text: messageText }],
+  });
+
   const payload = {
-    contents: [{ parts: [{ text: userMessage }] }],
-    system_instruction: { parts: [{ text: buildSystemInstruction() }] },
+    contents: formattedContents,
+    system_instruction: {
+      parts: [{ text: buildSystemInstruction() }],
+    },
     generationConfig: {
-      temperature: 0.2,      // Cukup presisi untuk rumus & aturan, tetapi luwes untuk sains/koding
-      maxOutputTokens: 300,  // Cepat dan hemat token
+      temperature: 0.2,      // Presisi untuk aturan & rumus, luwes untuk sains/koding
+      maxOutputTokens: 600,  // Cepat dan hemat token
     },
   };
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 7000);
+  const timeoutId = setTimeout(() => controller.abort(), 12000);
 
   try {
     const response = await fetch(endpoint, {
@@ -169,7 +245,13 @@ export const askGeminiFST = async (userMessage, onChunk) => {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      const errMsg = errorData?.error?.message || '';
+      const errMsg = errorData?.error?.message || `HTTP ${response.status} (${response.statusText})`;
+      console.error('Detail error response dari Gemini API:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorData,
+        payloadSent: payload,
+      });
 
       if (response.status === 503 || response.status === 429 || errMsg.toLowerCase().includes('demand')) {
         const busyMsg = `⚠️ Server AI sedang padat. Namun Anda tetap dapat menggunakan menu cepat di atas atau hubungi WhatsApp TU FST di **0812-3456-7890**.`;
@@ -177,10 +259,10 @@ export const askGeminiFST = async (userMessage, onChunk) => {
         return busyMsg;
       }
 
-      throw new Error(errMsg || `HTTP Error ${response.status}`);
+      throw new Error(`Gemini API Error (${response.status}): ${errMsg}`);
     }
 
-    // 4. Stream chunks realtime ke UI
+    // 6. Stream chunks realtime ke UI
     const reader = response.body.getReader();
     const decoder = new TextDecoder('utf-8');
     let accumulatedText = '';
@@ -226,7 +308,7 @@ export const askGeminiFST = async (userMessage, onChunk) => {
       return timeoutMsg;
     }
 
-    console.error('Error pada askGeminiFST:', err);
+    console.error('Detail error asli pada askGeminiFST:', err);
     throw err;
   }
 };

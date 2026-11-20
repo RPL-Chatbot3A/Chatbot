@@ -12,24 +12,29 @@ const QUICK_OPTIONS = [
 
 /**
  * Komponen QuickReplyButtons untuk merender tombol opsi cepat secara dinamis (DRY)
+ * Mendukung scroll horizontal pada perangkat mobile/tablet agar hemat ruang vertikal
  * @param {Object} props
  * @param {Function} props.onSelectOption - Callback saat tombol dipilih
  * @param {boolean} props.isDisabled - Status nonaktif saat memuat jawaban
+ * @param {string} props.theme - Tema aktif ('dark' | 'light')
  */
-export const QuickReplyButtons = ({ onSelectOption, isDisabled = false }) => {
+export const QuickReplyButtons = ({ onSelectOption, isDisabled = false, theme = 'dark' }) => {
+  const isDark = theme === 'dark';
+
   return (
-    <div className="w-full py-2">
-      {/* <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-        Pilihan Cepat / FAQ:
-      </p> */}
-      <div className="flex flex-wrap gap-2">
+    <div className="w-full py-1.5 overflow-x-auto whitespace-nowrap scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+      <div className="flex items-center gap-2 pb-0.5">
         {QUICK_OPTIONS.map((item) => (
           <button
             key={item.id}
             type="button"
             disabled={isDisabled}
             onClick={() => onSelectOption && onSelectOption(item.query)}
-            className="px-3.5 py-1.5 text-xs sm:text-sm font-medium rounded-full border border-slate-400/10 bg-slate-700/95 backdrop-blur-3xl shadow-inner shadow-white/15 text-slate-100 hover:scale-[103%] hover:shadow-white/20 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 cursor-pointer"
+            className={`shrink-0 px-3.5 py-1.5 text-xs sm:text-sm font-medium rounded-full border transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 cursor-pointer shadow-xs ${
+              isDark
+                ? "border-slate-700/80 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white hover:border-slate-600"
+                : "border-slate-300 bg-white text-slate-700 hover:bg-sky-50 hover:text-sky-600 hover:border-sky-300 shadow-slate-100"
+            }`}
           >
             {item.label}
           </button>
