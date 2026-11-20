@@ -11,6 +11,35 @@ function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // State Tema: Dark Mode (default) & Light Mode dengan persistensi LocalStorage
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem("aura_theme") || "dark";
+    } catch {
+      return "dark";
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("aura_theme", theme);
+    } catch (e) {
+      console.warn("Gagal menyimpan preferensi tema:", e);
+    }
+
+    if (theme === "dark") {
+      document.documentElement.classList.add("dark");
+      document.documentElement.classList.remove("light");
+    } else {
+      document.documentElement.classList.add("light");
+      document.documentElement.classList.remove("dark");
+    }
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  };
+
   const [chatHistory, setChatHistory] = useState({
     conversations: [],
     isLoading: false,
@@ -66,30 +95,45 @@ function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-slate-900 text-zinc-100 font-sans">
+      <div
+        className={`min-h-screen w-full flex items-center justify-center font-sans transition-colors duration-200 ${
+          theme === "dark" ? "bg-slate-900 text-zinc-100" : "bg-slate-50 text-slate-800"
+        }`}
+      >
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-2 border-sky-400 border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-slate-400">Memuat AURA-FST...</p>
+          <p className={`text-sm ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
+            Memuat AURA-FST...
+          </p>
         </div>
       </div>
     );
   }
 
   if (!session) {
-    return <Auth />;
+    return <Auth theme={theme} onToggleTheme={toggleTheme} />;
   }
 
   return (
-    <div className="h-dvh w-full bg-slate-900 flex flex-row overflow-hidden font-sans">
+    <div
+      className={`h-dvh w-full flex flex-row overflow-hidden font-sans transition-colors duration-200 ${
+        theme === "dark" ? "bg-slate-900 text-zinc-100" : "bg-slate-50 text-slate-800"
+      }`}
+    >
       {/* Sidemenu Responsif */}
       <aside
-        className={`h-full bg-slate-900 overflow-hidden shrink-0 transition-[flex-basis,opacity,border-color] duration-300 ease-in-out ${
+        className={`h-full overflow-hidden shrink-0 transition-[flex-basis,opacity,border-color,background-color] duration-300 ease-in-out ${
           isSidebarOpen
-            ? "lg:basis-3/12 md:basis-4/12 sm:basis-5/12 xs:basis-full opacity-100 border-r border-slate-800"
+            ? `lg:basis-3/12 md:basis-4/12 sm:basis-5/12 xs:basis-full opacity-100 border-r ${
+                theme === "dark"
+                  ? "bg-slate-900 border-slate-800"
+                  : "bg-white border-slate-200 shadow-sm"
+              }`
             : "basis-0 opacity-0 border-r-0 border-transparent pointer-events-none"
         }`}
       >
         <Sidemenu
+          theme={theme}
           onCloseSidebar={() => setIsSidebarOpen(false)}
           onNewChat={handleNewChat}
           onSelectPrompt={handleSelectPrompt}
@@ -108,6 +152,8 @@ function App() {
       >
         <ChatUI
           key={chatSessionId}
+          theme={theme}
+          onToggleTheme={toggleTheme}
           isSidebarOpen={isSidebarOpen}
           onOpenSidebar={() => setIsSidebarOpen(true)}
           onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}

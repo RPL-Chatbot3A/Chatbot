@@ -2,6 +2,8 @@
 
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --breakpoint-xs: 1rem;
   --breakpoint-sm: 40rem;
@@ -12,15 +14,74 @@
 
 * {
   font-family: "Google Sans", sans-serif;
+  box-sizing: border-box;
 }
 
-/* Animasi Melayang Halus untuk Karakter Maskot */
+/* ============================================================
+   CUSTOM SCROLLBAR (Halus, Tipis 6px, Menyatu dengan Tema)
+   ============================================================ */
+* {
+  scrollbar-width: thin;
+}
+
+/* Dark Mode Scrollbar */
+.dark,
+.dark * {
+  scrollbar-color: rgba(100, 116, 139, 0.45) transparent;
+}
+
+.dark ::-webkit-scrollbar,
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.dark ::-webkit-scrollbar-track,
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dark ::-webkit-scrollbar-thumb,
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.4);
+  border-radius: 9999px;
+  transition: background-color 0.2s ease;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover,
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.65);
+}
+
+/* Light Mode Scrollbar */
+.light,
+.light * {
+  scrollbar-color: rgba(148, 163, 184, 0.5) transparent;
+}
+
+.light ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.light ::-webkit-scrollbar-thumb {
+  background: rgba(203, 213, 225, 0.85);
+  border-radius: 9999px;
+  transition: background-color 0.2s ease;
+}
+
+.light ::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.85);
+}
+
+/* ============================================================
+   ANIMASI KARAKTER MASKOT & SUARA
+   ============================================================ */
 @keyframes floatMascot {
   0%, 100% {
     transform: translateY(0px) scale(1);
   }
   50% {
-    transform: translateY(-10px) scale(1.02);
+    transform: translateY(-8px) scale(1.02);
   }
 }
 
@@ -66,8 +127,25 @@
   animation: voiceBar 0.6s ease-in-out infinite 0.45s;
 }
 
-/* Menghilangkan Latar Gelap/Hitam pada Video Maskot sehingga hanya Objek Karakter yang Tampil */
-.mascot-blend {
+/* ============================================================
+   BLENDING & VIGNETTE VIDEO MASKOT
+   ============================================================ */
+/* Radial mask vignette halus pada tepian video agar menyatu mulus */
+.mascot-vignette {
+  mask-image: radial-gradient(circle at center, rgba(0, 0, 0, 1) 60%, rgba(0, 0, 0, 0.85) 75%, transparent 95%);
+  -webkit-mask-image: radial-gradient(circle at center, rgba(0, 0, 0, 1) 60%, rgba(0, 0, 0, 0.85) 75%, transparent 95%);
+}
+
+/* Dark mode blending */
+.dark .mascot-blend,
+.mascot-blend-dark {
   mix-blend-mode: screen;
-  filter: drop-shadow(0 12px 24px rgba(56, 189, 248, 0.25));
+  filter: drop-shadow(0 12px 28px rgba(56, 189, 248, 0.28));
+}
+
+/* Light mode blending */
+.light .mascot-blend,
+.mascot-blend-light {
+  mix-blend-mode: normal;
+  filter: drop-shadow(0 10px 22px rgba(14, 165, 233, 0.22));
 }

@@ -26,6 +26,11 @@ import {
   FileText,
   School,
   Code2,
+  Sun,
+  Moon,
+  Copy,
+  Check,
+  ChevronDown,
 } from "lucide-react";
 
 /**
@@ -36,37 +41,40 @@ const HERO_ACTION_CARDS = [
     id: "krs",
     title: "Informasi KRS & SKS",
     subtitle: "Beban SKS & alur pengisian portal",
-    icon: <GraduationCap size={20} className="text-sky-400" />,
+    icon: <GraduationCap size={20} className="text-sky-500" />,
     query: "Bagaimana jadwal dan alur pengisian KRS di FST?",
   },
   {
     id: "sidang",
     title: "Syarat Sidang TA",
     subtitle: "Pendaftaran skripsi & munaqasyah",
-    icon: <FileText size={20} className="text-emerald-400" />,
+    icon: <FileText size={20} className="text-emerald-500" />,
     query: "Apa saja syarat dan ketentuan mendaftar Sidang Tugas Akhir (TA)?",
   },
   {
     id: "pmb",
     title: "Info PMB & Prodi",
     subtitle: "Jalur masuk & kebijakan transfer",
-    icon: <School size={20} className="text-amber-400" />,
+    icon: <School size={20} className="text-amber-500" />,
     query: "Apa saja program studi dan jalur pendaftaran PMB di FST?",
   },
   {
     id: "sains",
     title: "Sains & Koding",
     subtitle: "Tanya rumus matematika & materi kuliah",
-    icon: <Code2 size={20} className="text-purple-400" />,
+    icon: <Code2 size={20} className="text-purple-500" />,
     query: "Bantu saya memahami materi kuliah sains dan teknologi di FST",
   },
 ];
 
 /**
  * Komponen Utama ChatUI untuk Chatbot AURA-FST (FR-001)
- * Dilengkapi dengan Maskot Animasi Karakter tanpa latar belakang, ekspresi interaktif, dan integrasi Supabase.
+ * Dilengkapi dengan Maskot Animasi Karakter, Toggle Light/Dark Mode, Copy Message,
+ * Tombol Send interaktif, Auto-scroll & Floating Scroll-to-bottom button.
  */
 export const ChatUI = ({
+  theme = "dark",
+  onToggleTheme,
   isSidebarOpen,
   onOpenSidebar,
   onToggleSidebar,
@@ -74,6 +82,8 @@ export const ChatUI = ({
   onLogout,
   onHistoryChange,
 }) => {
+  const isDark = theme === "dark";
+
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -81,6 +91,12 @@ export const ChatUI = ({
   const [isExpanded, setIsExpanded] = useState(false);
   const [showExpandBtn, setShowExpandBtn] = useState(false);
   const [isMultiline, setIsMultiline] = useState(false);
+
+  // State Feedback Salin Pesan (Copy)
+  const [copiedId, setCopiedId] = useState(null);
+
+  // State Tombol Scroll ke Bawah
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
 
   // State untuk riwayat percakapan Supabase
   const [userId, setUserId] = useState(null);
@@ -90,6 +106,7 @@ export const ChatUI = ({
 
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
+  const mainContainerRef = useRef(null);
 
   // Mengambil sesi login dan memuat riwayat percakapan dari Supabase
   useEffect(() => {
@@ -141,10 +158,22 @@ export const ChatUI = ({
     setMessages([welcomeMsg]);
   }, []);
 
-  // Auto-scroll ke pesan terbaru
+  // Auto-scroll halus ke pesan terbaru setiap kali pesan dikirim/diterima
+  const scrollToBottom = (behavior = "smooth") => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
+  };
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    scrollToBottom("smooth");
   }, [messages, isLoading]);
+
+  // Listener Scroll Container untuk menampilkan tombol "Scroll ke Bawah"
+  const handleScroll = () => {
+    const el = mainContainerRef.current;
+    if (!el) return;
+    const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    setShowScrollBottom(distanceToBottom > 140);
+  };
 
   // Mengatur tinggi otomatis textarea & visibilitas tombol Maximize
   useEffect(() => {
@@ -160,158 +189,54 @@ export const ChatUI = ({
     }
 
     el.style.height = "auto";
-    const scrollHeight = el.scrollHeight;
+    const newHeight = el.scrollHeight;
 
-    setIsMultiline(scrollHeight > 48);
-
-    if (scrollHeight > 90) {
+    if (newHeight > 56) {
+      setIsMultiline(true);
       setShowExpandBtn(true);
-    } else if (!isExpanded) {
+    } else {
+      setIsMultiline(false);
       setShowExpandBtn(false);
+      setIsExpanded(false);
     }
 
     if (isExpanded) {
-      el.style.height = "320px";
+      el.style.height = "160px";
     } else {
-      el.style.height = `${Math.min(scrollHeight, 160)}px`;
+      el.style.height = `${Math.min(newHeight, 120)}px`;
     }
   }, [inputText, isExpanded]);
 
-  // Menangani input prompt yang dikirim dari sidebar
+  // Eksekusi prompt eksternal dari tombol quick card atau sidebar menu
   useEffect(() => {
-    if (externalPrompt?.text && !isLoading) {
+    if (externalPrompt?.text) {
       handleSendMessage(externalPrompt.text);
     }
   }, [externalPrompt]);
 
-  /**
-   * Menangani pengiriman pesan baik dari tombol cepat maupun form input
-   * @param {string} rawTopic
-   */
-  const handleSendMessage = async (rawTopic) => {
-    setErrorMessage("");
-
-    const {
-      isValid,
-      sanitizedTopic,
-      errorMessage: validationError,
-    } = validateAndSanitizeTopic(rawTopic);
-
-    if (!isValid) {
-      setErrorMessage(validationError);
-      return;
-    }
-
-    const userMessageId = `user-${Date.now()}`;
-    const botMessageId = `bot-${Date.now() + 1}`;
-    const currentTime = new Date().toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-
-    const userMessage = {
-      id: userMessageId,
-      sender: "user",
-      text: sanitizedTopic,
-      timestamp: currentTime,
-    };
-
-    const placeholderBotMessage = {
-      id: botMessageId,
-      sender: "bot",
-      text: "",
-      timestamp: currentTime,
-    };
-
-    setMessages((prev) => [...prev, userMessage, placeholderBotMessage]);
-    setInputText("");
-    setIsLoading(true);
-
+  // Fungsi Salin Teks Jawaban AI
+  const handleCopyMessage = async (id, text) => {
+    if (!text) return;
     try {
-      let currentUserId = userId;
-      if (!currentUserId) {
-        try {
-          const session = await getOrCreateUserSession();
-          currentUserId = session?.user?.id;
-          if (currentUserId) setUserId(currentUserId);
-        } catch {
-          // Guest mode
-        }
-      }
-
-      let conversationId = activeConversationId;
-      if (currentUserId) {
-        if (!conversationId) {
-          try {
-            const newConversation = await createConversation(
-              currentUserId,
-              sanitizedTopic.slice(0, 50)
-            );
-            conversationId = newConversation.id;
-            setActiveConversationId(conversationId);
-            setConversations((prev) => [newConversation, ...prev]);
-          } catch (e) {
-            console.warn("Supabase conversation skip:", e);
-          }
-        }
-
-        if (conversationId) {
-          try {
-            await saveUserMessage(conversationId, currentUserId, sanitizedTopic);
-            await updateConversationTime(conversationId);
-          } catch (e) {
-            console.warn("Supabase save user message skip:", e);
-          }
-        }
-      }
-
-      // Panggil Gemini dan streaming respons
-      const assistantResponse = await askGeminiFST(
-        sanitizedTopic,
-        (currentAccumulatedText) => {
-          setIsLoading(false);
-          setMessages((prevMessages) =>
-            prevMessages.map((msg) =>
-              msg.id === botMessageId
-                ? { ...msg, text: currentAccumulatedText }
-                : msg
-            )
-          );
-        }
-      );
-
-      if (currentUserId && conversationId) {
-        try {
-          await saveAssistantMessage(
-            conversationId,
-            currentUserId,
-            assistantResponse
-          );
-          await updateConversationTime(conversationId);
-        } catch (e) {
-          console.warn("Supabase save assistant message skip:", e);
-        }
-      }
+      await navigator.clipboard.writeText(text);
+      setCopiedId(id);
+      setTimeout(() => {
+        setCopiedId((prev) => (prev === id ? null : prev));
+      }, 2000);
     } catch (err) {
-      console.error("Terjadi kesalahan pada ChatUI:", err);
-      setMessages((prev) => prev.filter((msg) => msg.id !== botMessageId));
-      setErrorMessage(
-        err.message ||
-          "Gagal memproses pesan. Periksa koneksi internet atau kunci API Anda."
-      );
-    } finally {
-      setIsLoading(false);
+      console.warn("Gagal menyalin teks:", err);
     }
   };
 
+  // Membuka percakapan lama dari Supabase
   const handleOpenConversation = async (conversationId) => {
-    try {
-      setIsHistoryLoading(true);
-      setErrorMessage("");
+    if (conversationId === activeConversationId) return;
 
+    try {
+      setIsLoading(true);
       const historyMessages = await getMessages(conversationId);
 
-      const formattedMessages = historyMessages.map((msg) => ({
+      const formatted = historyMessages.map((msg) => ({
         id: msg.id,
         sender: msg.role === "user" ? "user" : "bot",
         text: msg.content,
@@ -321,171 +246,346 @@ export const ChatUI = ({
         }),
       }));
 
-      setMessages(formattedMessages);
+      setMessages(
+        formatted.length > 0
+          ? formatted
+          : [
+              {
+                id: "empty-history",
+                sender: "bot",
+                text: "Percakapan ini belum memiliki riwayat pesan.",
+                timestamp: new Date().toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }),
+              },
+            ]
+      );
       setActiveConversationId(conversationId);
+      setErrorMessage("");
     } catch (error) {
-      console.error("Gagal membuka percakapan:", error);
-      setErrorMessage(error.message || "Gagal membuka riwayat percakapan.");
+      console.error("Gagal memuat pesan percakapan:", error);
+      setErrorMessage("Gagal memuat percakapan dari riwayat.");
     } finally {
-      setIsHistoryLoading(false);
+      setIsLoading(false);
     }
   };
 
+  // Menghapus percakapan dari Supabase
+  const handleDeleteConversation = async (conversationId) => {
+    try {
+      const success = await deleteConversation(conversationId);
+      if (success) {
+        setConversations((prev) => prev.filter((c) => c.id !== conversationId));
+        if (activeConversationId === conversationId) {
+          handleNewChat();
+        }
+      }
+    } catch (error) {
+      console.error("Gagal menghapus percakapan:", error);
+    }
+  };
+
+  // Memulai chat baru
   const handleNewChat = () => {
     setActiveConversationId(null);
+    setInputText("");
+    setErrorMessage("");
     setMessages([
       {
-        id: "welcome-" + Date.now(),
+        id: "welcome-aura-fst-new",
         sender: "bot",
-        text: "Halo! Selamat datang di **AURA-FST** 👋\nSaya siap membantu memberikan informasi resmi akademik FST seputar KRS, Sidang TA, PMB, maupun materi sains & perkuliahan. Silakan ketik pertanyaan Anda.",
+        text: "Halo! Selamat datang di **AURA-FST** 👋\nSilakan pilih topik bantuan cepat di bawah atau tanyakan seputar KRS, TA, PMB, maupun rumus sains.",
         timestamp: new Date().toLocaleTimeString([], {
           hour: "2-digit",
           minute: "2-digit",
         }),
       },
     ]);
-    setInputText("");
-    setErrorMessage("");
   };
 
-  const handleDeleteConversation = async (conversationId) => {
+  // Mengirim data riwayat ke parent (App.jsx) untuk ditampilkan di Sidemenu
+  useEffect(() => {
+    if (onHistoryChange) {
+      onHistoryChange({
+        conversations,
+        isLoading: isHistoryLoading,
+        onOpen: handleOpenConversation,
+        onDelete: handleDeleteConversation,
+        onNewChat: handleNewChat,
+      });
+    }
+  }, [conversations, isHistoryLoading, activeConversationId]);
+
+  // Handler pengiriman pesan utama
+  const handleSendMessage = async (textToSend) => {
+    const rawText = textToSend || inputText;
+    if (!rawText.trim() || isLoading) return;
+
+    setErrorMessage("");
+
+    const validation = validateAndSanitizeTopic(rawText);
+    if (!validation.isValid) {
+      setErrorMessage(validation.message);
+      return;
+    }
+
+    const timestamp = new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    const userMsg = {
+      id: `user-${Date.now()}`,
+      sender: "user",
+      text: validation.sanitizedText,
+      timestamp,
+    };
+
+    setMessages((prev) => [...prev, userMsg]);
+    setInputText("");
+    setIsLoading(true);
+
+    let currentConvId = activeConversationId;
+
+    if (userId) {
+      try {
+        if (!currentConvId) {
+          const title =
+            validation.sanitizedText.length > 30
+              ? `${validation.sanitizedText.substring(0, 30)}...`
+              : validation.sanitizedText;
+
+          const newConv = await createConversation(userId, title);
+          if (newConv) {
+            currentConvId = newConv.id;
+            setActiveConversationId(newConv.id);
+            setConversations((prev) => [newConv, ...prev]);
+          }
+        }
+
+        if (currentConvId) {
+          await saveUserMessage(currentConvId, validation.sanitizedText);
+          await updateConversationTime(currentConvId);
+        }
+      } catch (err) {
+        console.warn("Gagal menyimpan ke Supabase:", err);
+      }
+    }
+
     try {
-      await deleteConversation(conversationId);
+      const response = await askGeminiFST(validation.sanitizedText);
 
-      setConversations((prev) =>
-        prev.filter((conversation) => conversation.id !== conversationId)
-      );
+      const botMsg = {
+        id: `bot-${Date.now()}`,
+        sender: "bot",
+        text: response.text,
+        timestamp: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      };
 
-      if (activeConversationId === conversationId) {
-        setActiveConversationId(null);
-        handleNewChat();
+      setMessages((prev) => [...prev, botMsg]);
+
+      if (currentConvId) {
+        await saveAssistantMessage(currentConvId, response.text);
       }
     } catch (error) {
-      console.error("Gagal menghapus percakapan:", error);
-      setErrorMessage(error.message || "Gagal menghapus percakapan.");
+      console.error("Gagal mendapatkan balasan dari AI:", error);
+      const fallbackMsg = {
+        id: `bot-err-${Date.now()}`,
+        sender: "bot",
+        text: "Maaf, terjadi kendala saat memproses jawaban. Silakan coba sesaat lagi.",
+        timestamp: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      };
+      setMessages((prev) => [...prev, fallbackMsg]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  useEffect(() => {
-    onHistoryChange?.({
-      conversations,
-      isLoading: isHistoryLoading,
-      onOpen: handleOpenConversation,
-      onDelete: handleDeleteConversation,
-      onNewChat: handleNewChat,
-    });
-  }, [conversations, isHistoryLoading]);
-
   const handleSubmit = (e) => {
     e.preventDefault();
-    handleSendMessage(inputText);
+    handleSendMessage();
   };
 
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      if (inputText.trim() && !isLoading) {
-        handleSendMessage(inputText);
-      }
+      handleSendMessage();
     }
   };
 
-  const handleOpenClick = () => {
-    if (onOpenSidebar) {
-      onOpenSidebar();
-    } else if (onToggleSidebar) {
-      onToggleSidebar();
-    }
-  };
-
-  // Menentukan apakah saat ini sedang dalam mode awal/welcome (belum ada chat dari user)
   const isInitialWelcome =
-    messages.length === 0 ||
-    (messages.length === 1 &&
-      messages[0].sender === "bot" &&
-      messages[0].id?.startsWith("welcome"));
+    messages.length === 1 && messages[0].sender === "bot";
 
   return (
-    <div className="flex flex-col h-dvh w-full bg-linear-to-b from-slate-800 to-slate-900 text-slate-800 overflow-hidden font-sans">
-      {/* Top Bar dengan Tombol Buka Sidebar & Identitas Karakter */}
-      {!isSidebarOpen && (
-        <header className="shrink-0 px-4 pt-3 pb-1 flex items-center justify-between z-20">
-          <div className="flex items-center gap-2.5">
+    <div
+      className={`relative h-full flex flex-col justify-between overflow-hidden select-text transition-colors duration-200 ${
+        isDark ? "bg-slate-900 text-zinc-100" : "bg-slate-50 text-slate-800"
+      }`}
+    >
+      {/* Header Halaman Chat */}
+      <header
+        className={`shrink-0 flex items-center justify-between px-4 sm:px-6 py-3 border-b transition-colors duration-200 ${
+          isDark
+            ? "bg-slate-900/90 border-slate-800"
+            : "bg-white/90 border-slate-200 shadow-xs"
+        }`}
+      >
+        <div className="flex items-center gap-3">
+          {/* Tombol Buka Sidebar: Hanya Muncul Ketika Sidebar Sedang Tertutup */}
+          {!isSidebarOpen && (
             <button
               type="button"
-              onClick={handleOpenClick}
+              onClick={onOpenSidebar || onToggleSidebar}
               aria-label="Open sidebar"
-              className="group relative p-2 text-slate-300 hover:text-white hover:bg-slate-700/70 rounded-full transition-colors cursor-pointer"
+              className={`group relative p-2 rounded-full transition-colors cursor-pointer shrink-0 ${
+                isDark
+                  ? "text-slate-300 hover:text-white hover:bg-slate-800"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+              }`}
             >
-              <PanelLeft size={19} className="block group-hover:hidden" />
+              <PanelLeft size={18} className="block group-hover:hidden" />
               <PanelLeftOpen
-                size={19}
-                className="hidden group-hover:block text-slate-50"
+                size={18}
+                className={`hidden group-hover:block ${
+                  isDark ? "text-slate-50" : "text-slate-900"
+                }`}
               />
 
-              <span className="pointer-events-none absolute top-full left-0 mt-1.5 px-2.5 py-1 rounded-lg bg-slate-950 text-zinc-100 text-[11px] font-medium whitespace-nowrap border border-slate-700/80 shadow-lg opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition-all duration-150 z-50">
+              <span
+                className={`pointer-events-none absolute top-full left-0 mt-2 px-2.5 py-1 rounded-lg text-[11px] font-medium whitespace-nowrap shadow-lg opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition-all duration-150 z-50 border ${
+                  isDark
+                    ? "bg-slate-950 text-zinc-100 border-slate-700/80"
+                    : "bg-white text-slate-900 border-slate-200 shadow-slate-200"
+                }`}
+              >
                 Open sidebar
               </span>
             </button>
+          )}
 
-            {/* Maskot Avatar Mini di Header */}
-            <div className="flex items-center gap-2 select-none">
-              <MascotCharacter size="xs" isSpeaking={isLoading} />
-              <div className="flex items-center gap-1.5">
-                <span className="font-semibold text-sm sm:text-base tracking-tight text-zinc-100">
-                  AURA-FST
-                </span>
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  {isLoading ? "Berbicara..." : "Online"}
-                </span>
-              </div>
+          {/* Maskot Avatar Mini di Header */}
+          <div className="flex items-center gap-2 select-none">
+            <MascotCharacter size="xs" theme={theme} isSpeaking={isLoading} />
+            <div className="flex items-center gap-1.5">
+              <span
+                className={`font-semibold text-sm sm:text-base tracking-tight ${
+                  isDark ? "text-zinc-100" : "text-slate-900"
+                }`}
+              >
+                AURA-FST
+              </span>
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                {isLoading ? "Berbicara..." : "Online"}
+              </span>
             </div>
           </div>
+        </div>
 
-          <span className="text-xs text-slate-400 hidden sm:inline">
+        {/* Pojok Kanan Header: Tombol Switch Tema & Status */}
+        <div className="flex items-center gap-2.5">
+          {onToggleTheme && (
+            <button
+              type="button"
+              onClick={onToggleTheme}
+              aria-label={isDark ? "Beralih ke Mode Terang" : "Beralih ke Mode Gelap"}
+              title={isDark ? "Beralih ke Mode Terang" : "Beralih ke Mode Gelap"}
+              className={`p-2 rounded-full transition-all cursor-pointer border ${
+                isDark
+                  ? "bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 border-slate-700/80 shadow-xs"
+                  : "bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border-slate-300 shadow-xs"
+              }`}
+            >
+              {isDark ? <Sun size={17} /> : <Moon size={17} />}
+            </button>
+          )}
+
+          <span
+            className={`text-xs hidden sm:inline ${
+              isDark ? "text-slate-400" : "text-slate-500"
+            }`}
+          >
             Academic Chatbot FST
           </span>
-        </header>
-      )}
+        </div>
+      </header>
 
-      {/* Area Konten Utama */}
-      <main className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-6 flex flex-col justify-between">
+      {/* Area Konten Utama: Padding atas cukup agar maskot tidak terpotong, padding bawah pb-32/36 agar kartu tidak tertutup input */}
+      <main
+        ref={mainContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto px-4 sm:px-6 pt-6 sm:pt-8 pb-32 sm:pb-36 flex flex-col justify-between"
+      >
         {isInitialWelcome ? (
-          /* TAMPILAN HERO: KARAKTER MURNI MELAYANG DI TENGAH (Tanpa Kotak Latar) */
-          <div className="my-auto flex flex-col items-center justify-center text-center max-w-2xl mx-auto w-full py-2">
+          /* TAMPILAN HERO: KARAKTER MURNI MELAYANG DI TENGAH DENGAN SPACING LEGA */
+          <div className="my-auto flex flex-col items-center justify-center text-center max-w-2xl mx-auto w-full pt-2 sm:pt-4 pb-6">
             {/* Karakter Maskot Melayang Murni Tanpa Frame Kotak */}
-            <div className="mb-4">
-              <MascotCharacter size="hero" />
+            <div className="mb-3 sm:mb-4">
+              <MascotCharacter size="hero" theme={theme} />
             </div>
 
             {/* Sapaan Karakter */}
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white mb-2">
+            <h1
+              className={`text-2xl sm:text-3xl font-bold tracking-tight mb-2 ${
+                isDark ? "text-white" : "text-slate-900"
+              }`}
+            >
               Halo! Aku AURA-FST
             </h1>
-            <p className="text-xs sm:text-sm text-slate-300 max-w-md leading-relaxed mb-6">
+            <p
+              className={`text-xs sm:text-sm max-w-md leading-relaxed mb-6 sm:mb-8 ${
+                isDark ? "text-slate-300" : "text-slate-600"
+              }`}
+            >
               Siap nemenin kamu ngobrol, eksplorasi materi sains &amp; teknologi,
               serta bantu kebutuhan informasi akademik FST dengan cepat.
             </p>
 
-            {/* 4 Kartu Opsi Cepat / Quick Cards (Sesuai Mockup) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-lg text-left">
+            {/* 4 Kartu Opsi Cepat / Quick Cards (Sesuai Desain Referensi) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-3.5 w-full max-w-lg text-left">
               {HERO_ACTION_CARDS.map((card) => (
                 <button
                   key={card.id}
                   type="button"
                   onClick={() => handleSendMessage(card.query)}
-                  className="p-3.5 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/80 hover:border-sky-500/50 text-left transition-all duration-200 group cursor-pointer shadow-sm hover:shadow-md hover:scale-[1.02]"
+                  className={`p-3.5 rounded-2xl border text-left transition-all duration-200 group cursor-pointer shadow-xs hover:shadow-md hover:scale-[1.02] ${
+                    isDark
+                      ? "bg-slate-800/90 hover:bg-slate-750 border-slate-700/80 hover:border-sky-500/50"
+                      : "bg-white hover:bg-slate-50 border-slate-200/90 hover:border-sky-400 shadow-slate-100"
+                  }`}
                 >
                   <div className="flex items-start gap-3">
-                    <div className="p-2 rounded-xl bg-slate-700/60 group-hover:bg-slate-650 shrink-0">
+                    <div
+                      className={`p-2 rounded-xl shrink-0 transition-colors ${
+                        isDark
+                          ? "bg-slate-700/60 group-hover:bg-slate-700"
+                          : "bg-slate-100 group-hover:bg-sky-50"
+                      }`}
+                    >
                       {card.icon}
                     </div>
                     <div className="min-w-0">
-                      <h3 className="text-xs sm:text-sm font-semibold text-zinc-100 group-hover:text-sky-300 transition-colors">
+                      <h3
+                        className={`text-xs sm:text-sm font-semibold transition-colors ${
+                          isDark
+                            ? "text-zinc-100 group-hover:text-sky-300"
+                            : "text-slate-900 group-hover:text-sky-600"
+                        }`}
+                      >
                         {card.title}
                       </h3>
-                      <p className="text-[11px] text-slate-400 mt-0.5 truncate">
+                      <p
+                        className={`text-[11px] mt-0.5 truncate ${
+                          isDark ? "text-slate-400" : "text-slate-500"
+                        }`}
+                      >
                         {card.subtitle}
                       </p>
                     </div>
@@ -507,7 +607,13 @@ export const ChatUI = ({
               return msg.sender === "user" ? (
                 /* Gelembung Pesan User */
                 <div key={msg.id} className="flex justify-end">
-                  <div className="max-w-[85%] sm:max-w-[75%] bg-linear-to-b from-slate-600 to-slate-700 text-zinc-100 rounded-3xl rounded-tr-sm px-5 py-3.5 text-[15px] leading-relaxed shadow-sm">
+                  <div
+                    className={`max-w-[85%] sm:max-w-[75%] rounded-3xl rounded-tr-sm px-5 py-3.5 text-[15px] leading-relaxed shadow-sm ${
+                      isDark
+                        ? "bg-linear-to-b from-slate-600 to-slate-700 text-zinc-100"
+                        : "bg-linear-to-b from-sky-600 to-blue-600 text-white"
+                    }`}
+                  >
                     <p className="whitespace-pre-wrap">{msg.text}</p>
                   </div>
                 </div>
@@ -517,26 +623,66 @@ export const ChatUI = ({
                   {/* Maskot Avatar dengan Animasi Ekspresi Mulut saat Berbicara */}
                   <MascotCharacter
                     size="md"
+                    theme={theme}
                     isSpeaking={isCurrentlySpeaking}
                     showWave={isCurrentlySpeaking}
                   />
 
-                  {/* Isi Pesan */}
-                  <div className="flex-1 min-w-0 text-[15px] leading-relaxed text-zinc-200 pt-0.5">
+                  {/* Isi Pesan & Tombol Salin */}
+                  <div className="flex-1 min-w-0 text-[15px] leading-relaxed pt-0.5">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-semibold text-sky-400">
+                      <span className="text-xs font-semibold text-sky-500">
                         AURA-FST
                       </span>
                       {isCurrentlySpeaking && (
-                        <span className="text-[11px] text-sky-400 font-medium animate-pulse">
+                        <span className="text-[11px] text-sky-500 font-medium animate-pulse">
                           • sedang berbicara...
                         </span>
                       )}
-                      <span className="text-[10px] text-slate-400">
+                      <span
+                        className={`text-[10px] ${
+                          isDark ? "text-slate-400" : "text-slate-500"
+                        }`}
+                      >
                         {msg.timestamp}
                       </span>
                     </div>
-                    <FormattedMessage content={msg.text} />
+
+                    <div
+                      className={`${
+                        isDark ? "text-zinc-200" : "text-slate-800"
+                      }`}
+                    >
+                      <FormattedMessage content={msg.text} />
+                    </div>
+
+                    {/* Tombol Salin Jawaban AI */}
+                    <div className="mt-2 flex items-center">
+                      <button
+                        type="button"
+                        onClick={() => handleCopyMessage(msg.id, msg.text)}
+                        title="Salin jawaban"
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-all cursor-pointer border ${
+                          copiedId === msg.id
+                            ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/30"
+                            : isDark
+                            ? "bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-slate-200 border-slate-700/60"
+                            : "bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-800 border-slate-200"
+                        }`}
+                      >
+                        {copiedId === msg.id ? (
+                          <>
+                            <Check size={12} className="text-emerald-500" />
+                            <span>Tersalin!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={12} />
+                            <span>Salin</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -545,16 +691,21 @@ export const ChatUI = ({
             {/* Indikator Menjawab / Memproses Pesan */}
             {isLoading && (
               <div className="flex items-start gap-3 sm:gap-4">
-                <MascotCharacter size="md" isSpeaking={true} showWave={true} />
+                <MascotCharacter
+                  size="md"
+                  theme={theme}
+                  isSpeaking={true}
+                  showWave={true}
+                />
                 <div className="flex flex-col gap-1.5 pt-1">
-                  <div className="flex items-center gap-2 text-sky-400 text-xs font-medium">
-                    <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping" />
+                  <div className="flex items-center gap-2 text-sky-500 text-xs font-medium">
+                    <span className="w-2 h-2 rounded-full bg-sky-500 animate-ping" />
                     <span>AURA-FST sedang membalas &amp; berbicara...</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-slate-400 text-sm">
-                    <span className="w-2 h-2 rounded-full bg-sky-400 animate-bounce" />
-                    <span className="w-2 h-2 rounded-full bg-sky-400 animate-bounce [animation-delay:150ms]" />
-                    <span className="w-2 h-2 rounded-full bg-sky-400 animate-bounce [animation-delay:300ms]" />
+                    <span className="w-2 h-2 rounded-full bg-sky-500 animate-bounce" />
+                    <span className="w-2 h-2 rounded-full bg-sky-500 animate-bounce [animation-delay:150ms]" />
+                    <span className="w-2 h-2 rounded-full bg-sky-500 animate-bounce [animation-delay:300ms]" />
                   </div>
                 </div>
               </div>
@@ -565,12 +716,33 @@ export const ChatUI = ({
         )}
       </main>
 
-      {/* Area Input Kapsul */}
-      <footer className="w-full px-4 sm:px-6 pb-4 pt-2">
+      {/* Tombol Floating: Scroll ke Bawah jika user sedang scroll ke atas */}
+      {showScrollBottom && (
+        <button
+          type="button"
+          onClick={() => scrollToBottom("smooth")}
+          aria-label="Scroll ke pesan terbaru"
+          className={`fixed bottom-28 sm:bottom-32 right-6 sm:right-10 z-30 px-3 py-2 rounded-full shadow-lg border transition-all duration-200 flex items-center gap-1.5 text-xs font-medium cursor-pointer hover:scale-105 active:scale-95 ${
+            isDark
+              ? "bg-slate-800/95 text-sky-400 border-slate-700 hover:bg-slate-700 shadow-slate-950/60"
+              : "bg-white/95 text-sky-600 border-slate-200 hover:bg-slate-50 shadow-slate-300/60"
+          }`}
+        >
+          <ChevronDown size={15} />
+          <span className="hidden sm:inline">Pesan terbaru</span>
+        </button>
+      )}
+
+      {/* Area Input Kapsul (Footer) */}
+      <footer
+        className={`w-full px-4 sm:px-6 pb-4 pt-2 shrink-0 transition-colors duration-200 ${
+          isDark ? "bg-slate-900/80" : "bg-slate-50/80"
+        } backdrop-blur-md`}
+      >
         <div className="max-w-3xl w-full mx-auto">
           {/* Banner Error UI */}
           {errorMessage && (
-            <div className="mb-3 px-4 py-2.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-2xl flex justify-between items-center">
+            <div className="mb-3 px-4 py-2.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-2xl flex justify-between items-center shadow-xs">
               <span>⚠️ {errorMessage}</span>
               <button
                 onClick={() => setErrorMessage("")}
@@ -585,6 +757,7 @@ export const ChatUI = ({
           {!isInitialWelcome && (
             <div className="mb-1 pl-1">
               <QuickReplyButtons
+                theme={theme}
                 onSelectOption={handleSendMessage}
                 isDisabled={isLoading}
               />
@@ -593,11 +766,13 @@ export const ChatUI = ({
 
           <form
             onSubmit={handleSubmit}
-            className={`relative flex flex-col bg-linear-to-b bg-slate-600 to-slate-700 focus-within:bg-slate-700 focus-within:shadow-md focus-within:ring-1 focus-within:ring-slate-600 px-5 py-2.5 transition-all duration-200 ${
-              isMultiline || isExpanded ? "rounded-2xl" : "rounded-full"
-            }`}
+            className={`relative flex flex-col border transition-all duration-200 px-5 py-2.5 shadow-sm ${
+              isDark
+                ? "bg-linear-to-b from-slate-750 to-slate-800 focus-within:bg-slate-700/90 border-slate-700 focus-within:border-sky-500/70"
+                : "bg-white focus-within:bg-white border-slate-300 focus-within:border-sky-500 shadow-slate-200/50"
+            } ${isMultiline || isExpanded ? "rounded-2xl" : "rounded-full"}`}
           >
-            {/* Baris Utama: Textarea & Tombol Send */}
+            {/* Baris Utama: Textarea, Tombol Expand, & Tombol Send */}
             <div className="flex items-center gap-3">
               <textarea
                 ref={textareaRef}
@@ -610,10 +785,14 @@ export const ChatUI = ({
                 onKeyDown={handleKeyDown}
                 placeholder="Tanya AURA..."
                 disabled={isLoading}
-                className="flex-1 bg-transparent py-1.5 text-sm text-zinc-100 placeholder:text-slate-300 focus:outline-none resize-none overflow-y-auto leading-relaxed break-all disabled:opacity-60 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full"
+                className={`flex-1 bg-transparent py-1.5 text-sm focus:outline-none resize-none overflow-y-auto leading-relaxed break-all disabled:opacity-60 ${
+                  isDark
+                    ? "text-zinc-100 placeholder:text-slate-400"
+                    : "text-slate-900 placeholder:text-slate-400"
+                }`}
               />
 
-              <div className="flex flex-col self-stretch items-center justify-between">
+              <div className="flex items-center gap-1.5 self-center shrink-0">
                 {(showExpandBtn || isExpanded) && (
                   <button
                     type="button"
@@ -623,33 +802,45 @@ export const ChatUI = ({
                         ? "Kecilkan kotak input"
                         : "Perbesar kotak input"
                     }
-                    className="flex w-10 h-10 items-center justify-center text-slate-200 hover:text-white hover:bg-slate-700 rounded-full transition-colors cursor-pointer"
+                    className={`flex w-8 h-8 items-center justify-center rounded-full transition-colors cursor-pointer ${
+                      isDark
+                        ? "text-slate-300 hover:text-white hover:bg-slate-700"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                    }`}
                   >
                     {isExpanded ? (
-                      <Minimize2 size={16} />
+                      <Minimize2 size={15} />
                     ) : (
-                      <Maximize2 size={16} />
+                      <Maximize2 size={15} />
                     )}
                   </button>
                 )}
 
+                {/* Tombol Kirim Pesan (Ikon Send) Selalu Terlihat di Sisi Kanan */}
                 <button
                   type="submit"
                   disabled={isLoading || !inputText.trim()}
                   aria-label="Kirim pesan"
-                  className={`mt-auto flex items-center justify-center w-10 h-10 rounded-full transition-all shrink-0 pr-0.5 ${
+                  title="Kirim pesan"
+                  className={`flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full transition-all shrink-0 cursor-pointer ${
                     inputText.trim() && !isLoading
-                      ? "bg-linear-to-br from-sky-600 to-cyan-500 hover:bg-linear-to-bl hover:from-sky-600 hover:to-cyan-500 hover:scale-105 text-white opacity-100 scale-100 shadow-sm cursor-pointer"
-                      : "bg-transparent text-slate-400 opacity-0 scale-75 pointer-events-none"
+                      ? "bg-linear-to-br from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white shadow-md shadow-sky-500/25 scale-100 opacity-100 hover:scale-105 active:scale-95"
+                      : isDark
+                      ? "bg-slate-700/60 text-slate-500 opacity-60 cursor-not-allowed"
+                      : "bg-slate-200 text-slate-400 opacity-60 cursor-not-allowed"
                   }`}
                 >
-                  <Send size={16} />
+                  <Send size={15} />
                 </button>
               </div>
             </div>
           </form>
 
-          <p className="text-xs text-center text-slate-400/90 mt-2.5">
+          <p
+            className={`text-xs text-center mt-2.5 transition-colors ${
+              isDark ? "text-slate-400/90" : "text-slate-500"
+            }`}
+          >
             AURA-FST dapat membuat kesalahan. Periksa kembali informasi akademik
             penting.
           </p>
