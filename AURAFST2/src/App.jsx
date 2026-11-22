@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useLayoutEffect, useState, useCallback } from "react";
+import { flushSync } from "react-dom";
 import ChatUI from "./components/ChatUI";
 import Sidemenu from "./components/Sidemenu";
 import Auth from "./components/Auth";
@@ -20,13 +21,7 @@ function App() {
     }
   });
 
-  useEffect(() => {
-    try {
-      localStorage.setItem("aura_theme", theme);
-    } catch (e) {
-      console.warn("Gagal menyimpan preferensi tema:", e);
-    }
-
+  useLayoutEffect(() => {
     if (theme === "dark") {
       document.documentElement.classList.add("dark");
       document.documentElement.classList.remove("light");
@@ -36,8 +31,23 @@ function App() {
     }
   }, [theme]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem("aura_theme", theme);
+    } catch (e) {
+      console.warn("Gagal menyimpan preferensi tema:", e);
+    }
+  }, [theme]);
+
   const toggleTheme = () => {
-    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+    const nextTheme = theme === "dark" ? "light" : "dark";
+    const updateTheme = () => flushSync(() => setTheme(nextTheme));
+
+    if (document.startViewTransition) {
+      document.startViewTransition(updateTheme);
+    } else {
+      updateTheme();
+    }
   };
 
   const [chatHistory, setChatHistory] = useState({
@@ -134,6 +144,7 @@ function App() {
       >
         <Sidemenu
           theme={theme}
+          isSidebarOpen={isSidebarOpen}
           onCloseSidebar={() => setIsSidebarOpen(false)}
           onNewChat={handleNewChat}
           onSelectPrompt={handleSelectPrompt}
@@ -154,6 +165,7 @@ function App() {
           key={chatSessionId}
           theme={theme}
           onToggleTheme={toggleTheme}
+          onNewChat={handleNewChat}
           isSidebarOpen={isSidebarOpen}
           onOpenSidebar={() => setIsSidebarOpen(true)}
           onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}

@@ -16,6 +16,7 @@ import MascotCharacter from "./MascotCharacter";
 
 export const Sidemenu = ({
   theme = "dark",
+  isSidebarOpen = false,
   onCloseSidebar,
   onNewChat,
   chatHistory,
@@ -91,11 +92,12 @@ export const Sidemenu = ({
         <button
           type="button"
           onClick={onNewChat}
+          tabIndex={isSidebarOpen ? 0 : -1}
           className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-full text-xs font-medium border transition-all cursor-pointer shadow-xs ${
             isDark
               ? "bg-slate-800 hover:bg-slate-700/90 text-zinc-100 border-slate-700/80"
               : "bg-slate-100 hover:bg-slate-200/90 text-slate-800 border-slate-300/80"
-          }`}
+          } ${isSidebarOpen ? "animate-new-chat-drop-in" : "opacity-0 -translate-y-3 scale-95 pointer-events-none"}`}
         >
           <Plus size={16} className="text-sky-500 shrink-0" />
           <span className="truncate font-semibold">Percakapan Baru</span>
