@@ -18,6 +18,7 @@ import FormattedMessage from "./FormattedMessage";
 import MascotCharacter from "./MascotCharacter";
 import {
   Send,
+  Plus,
   Maximize2,
   Minimize2,
   PanelLeft,
@@ -75,6 +76,7 @@ const HERO_ACTION_CARDS = [
 export const ChatUI = ({
   theme = "dark",
   onToggleTheme,
+  onNewChat,
   isSidebarOpen,
   onOpenSidebar,
   onToggleSidebar,
@@ -522,47 +524,53 @@ export const ChatUI = ({
         isDark ? "bg-slate-900 text-zinc-100" : "bg-slate-50 text-slate-800"
       }`}
     >
+      {!isSidebarOpen && (
+        <div
+          className={`absolute inset-y-0 left-0 z-20 flex w-12 flex-col items-center gap-1 border-r pt-1.5 sm:pt-2.5 ${
+            isDark ? "border-slate-800" : "border-slate-200"
+          }`}
+        >
+          <button
+            type="button"
+            onClick={onOpenSidebar || onToggleSidebar}
+            aria-label="Buka sidebar"
+            title="Buka sidebar"
+            className={`group flex h-10 w-10 items-center justify-center rounded-lg transition-colors cursor-pointer ${
+              isDark
+                ? "text-slate-300 hover:bg-slate-800 hover:text-white"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+            }`}
+          >
+            <PanelLeft size={20} className="block group-hover:hidden" />
+            <PanelLeftOpen size={20} className="hidden group-hover:block" />
+          </button>
+          <button
+            type="button"
+            onClick={onNewChat}
+            aria-label="Percakapan Baru"
+            title="Percakapan Baru"
+            className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors cursor-pointer ${
+              isDark
+                ? "text-sky-400 hover:bg-slate-800 hover:text-sky-300"
+                : "text-sky-600 hover:bg-slate-100 hover:text-sky-700"
+            }`}
+          >
+            <Plus size={20} />
+          </button>
+        </div>
+      )}
+
       {/* Header Halaman Chat */}
       <header
-        className={`shrink-0 flex items-center justify-between px-3 sm:px-6 py-2.5 sm:py-3 border-b transition-colors duration-200 ${
+        className={`relative shrink-0 flex items-center justify-between py-2.5 sm:py-3 transition-colors duration-200 ${
+          isSidebarOpen ? "px-3 sm:px-6" : "pl-16 pr-3 sm:pr-6"
+        } ${
           isDark
-            ? "bg-slate-900/90 border-slate-800"
-            : "bg-white/90 border-slate-200 shadow-xs"
+            ? "bg-slate-900/90"
+            : "bg-white/90 shadow-xs"
         }`}
       >
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-          {/* Tombol Buka Sidebar: Hanya Muncul Ketika Sidebar Sedang Tertutup */}
-          {!isSidebarOpen && (
-            <button
-              type="button"
-              onClick={onOpenSidebar || onToggleSidebar}
-              aria-label="Open sidebar"
-              className={`group relative p-2 rounded-full transition-colors cursor-pointer shrink-0 ${
-                isDark
-                  ? "text-slate-300 hover:text-white hover:bg-slate-800"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-              }`}
-            >
-              <PanelLeft size={18} className="block group-hover:hidden" />
-              <PanelLeftOpen
-                size={18}
-                className={`hidden group-hover:block ${
-                  isDark ? "text-slate-50" : "text-slate-900"
-                }`}
-              />
-
-              <span
-                className={`pointer-events-none absolute top-full left-0 mt-2 px-2.5 py-1 rounded-lg text-[11px] font-medium whitespace-nowrap shadow-lg opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition-all duration-150 z-50 border ${
-                  isDark
-                    ? "bg-slate-950 text-zinc-100 border-slate-700/80"
-                    : "bg-white text-slate-900 border-slate-200 shadow-slate-200"
-                }`}
-              >
-                Open sidebar
-              </span>
-            </button>
-          )}
-
           {/* Maskot Avatar Mini di Header */}
           <div className="flex items-center gap-2 select-none min-w-0">
             <MascotCharacter size="xs" theme={theme} isSpeaking={isLoading} />
@@ -609,13 +617,23 @@ export const ChatUI = ({
             Academic Chatbot FST
           </span>
         </div>
+        <span
+          aria-hidden="true"
+          className={`absolute bottom-0 right-0 h-px ${
+            isSidebarOpen ? "left-0" : "left-12"
+          } ${isDark ? "bg-slate-800" : "bg-slate-200"}`}
+        />
       </header>
 
       {/* Area Konten Utama: Padding atas lega agar maskot tidak terpotong, padding bawah pb-32/36 agar kartu tidak tertutup input */}
       <main
         ref={mainContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-3 sm:px-6 pt-5 sm:pt-8 pb-32 sm:pb-36 flex flex-col justify-between"
+        className={`flex-1 overflow-y-auto ${
+          isSidebarOpen
+            ? "px-3 sm:px-6 pt-5 sm:pt-8"
+            : "pl-16 pr-3 sm:pr-6 pt-12"
+        } pb-32 sm:pb-36 flex flex-col justify-between`}
       >
         {isInitialWelcome ? (
           /* TAMPILAN HERO: KARAKTER MURNI MELAYANG DI TENGAH DENGAN SPACING LEGA */
@@ -825,7 +843,9 @@ export const ChatUI = ({
 
       {/* Area Input Kapsul (Footer) */}
       <footer
-        className={`w-full px-3 sm:px-6 pb-3 sm:pb-4 pt-2 shrink-0 transition-colors duration-200 ${
+        className={`w-full pb-3 sm:pb-4 pt-2 shrink-0 transition-colors duration-200 ${
+          isSidebarOpen ? "px-3 sm:px-6" : "pl-16 pr-3 sm:pr-6"
+        } ${
           isDark ? "bg-slate-900/80" : "bg-slate-50/80"
         } backdrop-blur-md`}
       >
